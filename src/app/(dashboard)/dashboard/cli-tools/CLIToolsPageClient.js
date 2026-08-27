@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import useSWR from "swr";
+import { fetcher, SWR_CONFIG } from "@/shared/utils/fetcher";
 import { CardSkeleton } from "@/shared/components";
 import { CLI_TOOLS, MITM_TOOLS } from "@/shared/constants/cliTools";
 import { MitmLinkCard } from "./components";
@@ -8,24 +9,9 @@ import ToolSummaryCard from "./components/ToolSummaryCard";
 
 const ALL_STATUSES_URL = "/api/cli-tools/all-statuses";
 
-export default function CLIToolsPageClient({ machineId }) {
-  const [loading, setLoading] = useState(true);
-  const [toolStatuses, setToolStatuses] = useState({});
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch(ALL_STATUSES_URL);
-        if (res.ok && mounted) setToolStatuses(await res.json());
-      } catch (error) {
-        console.log("Error fetching tool statuses:", error);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+export default function CLIToolsPageClient() {
+  const { data: toolStatuses = {}, isLoading } = useSWR(ALL_STATUSES_URL, fetcher, SWR_CONFIG);
+  const loading = isLoading && Object.keys(toolStatuses).length === 0;
 
   if (loading) {
     return (

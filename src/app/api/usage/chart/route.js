@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
 import { getChartData } from "@/lib/usageDb";
 
-const VALID_PERIODS = new Set(["today", "24h", "7d", "30d", "60d"]);
+function isValidPeriod(period) {
+  if (!period || typeof period !== "string") return false;
+  if (["today", "24h"].includes(period)) return true;
+  const match = period.match(/^(\d+)d$/);
+  if (match) {
+    const days = parseInt(match[1], 10);
+    return days >= 1 && days <= 3650;
+  }
+  return false;
+}
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "7d";
 
-    if (!VALID_PERIODS.has(period)) {
+    if (!isValidPeriod(period)) {
       return NextResponse.json({ error: "Invalid period" }, { status: 400 });
     }
 

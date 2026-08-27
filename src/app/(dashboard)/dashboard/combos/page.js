@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
+import { fetcher, SWR_CONFIG } from "@/shared/utils/fetcher";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -45,11 +47,22 @@ function normalizeCapEntry(entry) {
 }
 
 export default function CombosPage() {
+  const { data: combosData, isLoading: combosLoading, mutate: mutateCombos } = useSWR("/api/combos", fetcher, SWR_CONFIG);
+  const { data: providersData } = useSWR("/api/providers", fetcher, SWR_CONFIG);
+  const { data: settingsData, mutate: mutateSettings } = useSWR("/api/settings", fetcher, SWR_CONFIG);
+
   const [combos, setCombos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const activeProviders = providersData?.connections || [];
+  const loading = combosLoading && !combosData;
+
+  useEffect(() => {
+    if (combosData?.combos) {
+      setCombos(combosData.combos.filter((c) => !c.kind || c.kind === "llm"));
+    }
+  }, [combosData]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState(null);
-  const [activeProviders, setActiveProviders] = useState([]);
   const [comboStrategies, setComboStrategies] = useState({});
   const [capacityAdapter, setCapacityAdapter] = useState(EMPTY_CAPACITY_ADAPTER);
   const { getCaps } = useModelCaps();
@@ -57,25 +70,7 @@ export default function CombosPage() {
   const { copied, copy } = useCopyToClipboard();
 
   useEffect(() => {
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchData = async () => {
-    try {
-      const [combosRes, providersRes, settingsRes] = await Promise.all([
-        fetch("/api/combos"),
-        fetch("/api/providers"),
-        fetch("/api/settings"),
-      ]);
-      const combosData = await combosRes.json();
-      const providersData = await providersRes.json();
-      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-      
-      // Only LLM combos here - webSearch/webFetch combos belong to media-providers/web
-      if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
-      if (providersRes.ok) {
-        setActiveProviders(providersData.connections || []);
-      }
+    if (settingsData) {
       setComboStrategies(settingsData.comboStrategies || {});
       const rawAdapter = settingsData.capacityAdapter || {};
       const normalized = {};
@@ -83,11 +78,11 @@ export default function CombosPage() {
         normalized[cap.key] = normalizeCapEntry(rawAdapter[cap.key]);
       }
       setCapacityAdapter(normalized);
-    } catch (error) {
-      console.log("Error fetching data:", error);
-    } finally {
-      setLoading(false);
     }
+  }, [settingsData]);
+
+  const fetchData = async () => {
+    await Promise.all([mutateCombos(), mutateSettings()]);
   };
 
   const handleSetCapacityAdapter = async (next) => {

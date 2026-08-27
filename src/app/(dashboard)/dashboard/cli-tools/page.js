@@ -1,7 +1,7 @@
-import { getMachineId } from "@/shared/utils/machine";
+"use client";
+
 import CLIToolsPageClient from "./CLIToolsPageClient";
 
-export default async function CLIToolsPage() {
-  const machineId = await getMachineId();
-  return <CLIToolsPageClient machineId={machineId} />;
+export default function CLIToolsPage() {
+  return <CLIToolsPageClient />;
 }

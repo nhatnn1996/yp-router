@@ -1,7 +1,7 @@
-import { getMachineId } from "@/shared/utils/machine";
+"use client";
+
 import EndpointPageClient from "./EndpointPageClient";
 
-export default async function EndpointPage() {
-  const machineId = await getMachineId();
-  return <EndpointPageClient machineId={machineId} />;
+export default function EndpointPage() {
+  return <EndpointPageClient />;
 }

@@ -37,6 +37,9 @@ export function backupFile(srcPath, destDir, destName = null) {
 // table EXCEPT the excluded ones into it. Avoids duplicating the huge
 // observability log, so the backup stays small regardless of DB size.
 export function backupDbLite(adapter, destDir, destName = "data.sqlite") {
+  // PostgreSQL uses pg_dump for backups; skip SQLite-specific backup
+  if (adapter.driver === "pg") return null;
+
   const dest = path.join(destDir, destName);
   try { fs.rmSync(dest, { force: true }); } catch {}
   const escaped = dest.replace(/'/g, "''");

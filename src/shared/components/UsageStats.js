@@ -10,14 +10,16 @@ function isLLMProvider(id) {
   if (!p?.serviceKinds) return true;
   return p.serviceKinds.includes("llm");
 }
+import useSWR from "swr";
+import { fetcher, SWR_CONFIG } from "@/shared/utils/fetcher";
 import Badge from "./Badge";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
-import dynamic from "next/dynamic";
-// Lazy-load: keeps @xyflow/react out of the shared bundle until topology renders
-const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
+import ModelDistributionCard from "@/app/(dashboard)/dashboard/usage/components/ModelDistributionCard";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
+import PeriodSelector from "@/app/(dashboard)/dashboard/usage/components/PeriodSelector";
+import { Skeleton } from "@/shared/components/Loading";
 
 function timeAgo(timestamp) {
   const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
@@ -41,10 +43,21 @@ function TimeAgo({ timestamp }) {
 
 function RecentRequests({ requests = [] }) {
   return (
-    <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
+    <Card className="flex min-w-0 flex-col overflow-hidden" padding="md" style={{ minHeight: 480 }}>
       {/* Header */}
-      <div className="px-1 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Recent Requests</span>
+      <div className="flex items-center justify-between pb-3 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
+            <span className="material-symbols-outlined text-[18px]">history</span>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-text-main">Recent Activity</h3>
+            <p className="text-xs text-text-muted">Live incoming requests feed</p>
+          </div>
+        </div>
+        <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-bg-subtle border border-border text-text-muted">
+          {requests.length} logs
+        </span>
       </div>
 
       {!requests.length ? (
@@ -199,6 +212,93 @@ const PERIODS = [
   { value: "30d", label: "30D" },
   { value: "60d", label: "60D" },
 ];
+function AnalyticsGridSkeleton() {
+  return (
+    <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+      <Card className="flex min-w-0 flex-col gap-4 p-6" style={{ minHeight: 480 }}>
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="size-8 rounded-lg" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+          </div>
+          <Skeleton className="h-7 w-40 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center flex-1">
+          <div className="md:col-span-5 flex items-center justify-center">
+            <Skeleton className="size-44 rounded-full" />
+          </div>
+          <div className="md:col-span-7 flex flex-col gap-3">
+            <Skeleton className="h-3 w-32 mb-1" />
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="flex justify-between">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-1.5 w-full rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="pt-3 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-11 rounded-lg" />
+          ))}
+        </div>
+      </Card>
+      <Card className="flex min-w-0 flex-col p-6" style={{ minHeight: 480 }}>
+        <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="size-8 rounded-lg" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+          </div>
+          <Skeleton className="h-5 w-14 rounded-full" />
+        </div>
+        <div className="flex flex-col gap-2.5 flex-1">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between py-2 border-b border-border/40">
+              <div className="flex items-center gap-2">
+                <Skeleton className="size-2 rounded-full" />
+                <Skeleton className="h-3.5 w-24" />
+              </div>
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <Card className="p-4 overflow-hidden">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between py-2.5 border-b border-border/40">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export default function UsageStats({ period: periodProp, setPeriod: setPeriodProp, hidePeriodSelector = false } = {}) {
   const router = useRouter();
@@ -207,74 +307,51 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const sortBy = searchParams.get("sortBy") || "rawModel";
   const sortOrder = searchParams.get("sortOrder") || "asc";
 
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [fetching, setFetching] = useState(false);
   const [tableView, setTableView] = useState("model");
   const [viewMode, setViewMode] = useState("costs");
-  const [providers, setProviders] = useState([]);
   const [periodLocal, setPeriodLocal] = useState("today");
-  const isInitialLoad = useRef(true);
-  const hasLoadedStats = useRef(false);
+  const [realtimeOverrides, setRealtimeOverrides] = useState({});
+
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
 
-  // Fetch connected providers once, deduplicate by provider type
-  // Always include noAuth free providers (e.g. opencode) regardless of connections
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/providers").then((r) => r.ok ? r.json() : null),
-      fetch("/api/provider-nodes").then((r) => r.ok ? r.json() : null),
-    ])
-      .then(([d, nodesData]) => {
-        // Build node name lookup for custom providers
-        const nodeNameMap = {};
-        for (const node of (nodesData?.nodes || [])) {
-          nodeNameMap[node.id] = node.name;
-        }
-        const seen = new Set();
-        const unique = (d?.connections || []).filter((c) => {
-          if (c.isActive === false) return false;
-          if (!isLLMProvider(c.provider)) return false;
-          if (seen.has(c.provider)) return false;
-          seen.add(c.provider);
-          return true;
-        }).map((c) => ({
-          ...c,
-          nodeName: nodeNameMap[c.provider] || null,
-        }));
-        const noAuthProviders = Object.values(FREE_PROVIDERS)
-          .filter((p) => p.noAuth && !seen.has(p.id) && isLLMProvider(p.id))
-          .map((p) => ({ provider: p.id, name: p.name }));
-        setProviders([...unique, ...noAuthProviders]);
-      })
-      .catch(() => {});
-  }, []);
+  // SWR: Fetch stats with background revalidation and instant cache
+  const {
+    data: rawStats,
+    isLoading: loading,
+    isValidating: fetching,
+  } = useSWR(`/api/usage/stats?period=${period}`, fetcher, {
+    ...SWR_CONFIG,
+    refreshInterval: 15000,
+  });
 
-  // Fetch filtered stats via REST when period changes
-  useEffect(() => {
-    // First load: show full spinner; subsequent: show subtle fetching indicator
-    if (isInitialLoad.current) {
-      isInitialLoad.current = false;
-      setLoading(true);
-    } else {
-      setFetching(true);
+  // SWR: Providers & Nodes
+  const { data: providersData } = useSWR("/api/providers", fetcher, SWR_CONFIG);
+  const { data: nodesData } = useSWR("/api/provider-nodes", fetcher, SWR_CONFIG);
+
+  const providers = useMemo(() => {
+    const nodeNameMap = {};
+    for (const node of nodesData?.nodes || []) {
+      nodeNameMap[node.id] = node.name;
     }
-
-    fetch(`/api/usage/stats?period=${period}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          hasLoadedStats.current = true;
-          setStats((prev) => ({ ...prev, ...data }));
-        }
+    const seen = new Set();
+    const unique = (providersData?.connections || [])
+      .filter((c) => {
+        if (c.isActive === false) return false;
+        if (!isLLMProvider(c.provider)) return false;
+        if (seen.has(c.provider)) return false;
+        seen.add(c.provider);
+        return true;
       })
-      .catch(() => {})
-      .finally(() => {
-        setLoading(false);
-        setFetching(false);
-      });
-  }, [period]);
+      .map((c) => ({
+        ...c,
+        nodeName: nodeNameMap[c.provider] || null,
+      }));
+    const noAuthProviders = Object.values(FREE_PROVIDERS)
+      .filter((p) => p.noAuth && !seen.has(p.id) && isLLMProvider(p.id))
+      .map((p) => ({ provider: p.id, name: p.name }));
+    return [...unique, ...noAuthProviders];
+  }, [providersData, nodesData]);
 
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
@@ -283,27 +360,25 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        // Always merge only real-time fields, never overwrite full stats from REST
-        setStats((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            activeRequests: data.activeRequests,
-            recentRequests: data.recentRequests,
-            errorProvider: data.errorProvider,
-            pending: data.pending,
-          };
+        setRealtimeOverrides({
+          activeRequests: data.activeRequests,
+          recentRequests: data.recentRequests,
+          errorProvider: data.errorProvider,
+          pending: data.pending,
         });
-        if (hasLoadedStats.current) setLoading(false);
       } catch (err) {
         console.error("[SSE CLIENT] parse error:", err);
       }
     };
 
-    es.onerror = () => setLoading(false);
-
     return () => es.close();
   }, []);
+
+  // Merge SWR cached stats with real-time SSE stream
+  const stats = useMemo(() => {
+    if (!rawStats) return null;
+    return { ...rawStats, ...realtimeOverrides };
+  }, [rawStats, realtimeOverrides]);
 
   const toggleSort = useCallback((tableType, field) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -435,29 +510,12 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
   if (!stats && !loading) return <div className="text-text-muted">Failed to load usage statistics.</div>;
 
-  const spinner = (
-    <div className="flex items-center justify-center py-12 text-text-muted">
-      <span className="material-symbols-outlined text-[32px] animate-spin">progress_activity</span>
-    </div>
-  );
-
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
-        <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <div className="grid flex-1 grid-cols-5 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
-            {PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                disabled={fetching}
-                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${period === p.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:bg-bg-hover hover:text-text"}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          <PeriodSelector value={period} onChange={setPeriod} />
           {fetching && (
             <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
           )}
@@ -465,23 +523,20 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       )}
 
       {/* Overview cards */}
-      {loading ? spinner : <OverviewCards stats={stats} />}
+      <OverviewCards stats={stats} loading={loading} />
 
-      {/* Provider topology + Recent Requests */}
-      {loading ? spinner : (
+      {/* Model Distribution + Recent Requests */}
+      {loading ? (
+        <AnalyticsGridSkeleton />
+      ) : (
         <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <ProviderTopology
-            providers={providers}
-            activeRequests={stats.activeRequests || []}
-            lastProvider={stats.recentRequests?.[0]?.provider || ""}
-            errorProvider={stats.errorProvider || ""}
-          />
-          <RecentRequests requests={stats.recentRequests || []} />
+          <ModelDistributionCard stats={stats} />
+          <RecentRequests requests={stats?.recentRequests || []} />
         </div>
       )}
 
       {/* Token / Cost chart - sync period */}
-      {loading ? spinner : <UsageChart period={period} />}
+      <UsageChart period={period} />
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
@@ -511,7 +566,9 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             </button>
           </div>
         </div>
-        {loading ? spinner : activeTableConfig && (
+        {loading ? (
+          <TableSkeleton />
+        ) : activeTableConfig && (
           <UsageTable
             title=""
             columns={activeTableConfig.columns}

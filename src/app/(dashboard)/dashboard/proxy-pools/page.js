@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import useSWR from "swr";
+import { fetcher, SWR_CONFIG } from "@/shared/utils/fetcher";
 import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 
@@ -28,8 +30,15 @@ function normalizeFormData(data = {}) {
 }
 
 export default function ProxyPoolsPage() {
+  const { data: poolsData, isLoading: poolsLoading, mutate: mutatePools } = useSWR("/api/proxy-pools?includeUsage=true", fetcher, SWR_CONFIG);
   const [proxyPools, setProxyPools] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const loading = poolsLoading && !poolsData;
+
+  useEffect(() => {
+    if (poolsData?.proxyPools) {
+      setProxyPools(poolsData.proxyPools);
+    }
+  }, [poolsData]);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showBatchImportModal, setShowBatchImportModal] = useState(false);
   const [showVercelModal, setShowVercelModal] = useState(false);
@@ -67,22 +76,8 @@ export default function ProxyPoolsPage() {
   }, [showRelayMenu]);
 
   const fetchProxyPools = useCallback(async () => {
-    try {
-      const res = await fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" });
-      const data = await res.json();
-      if (res.ok) {
-        setProxyPools(data.proxyPools || []);
-      }
-    } catch (error) {
-      console.log("Error fetching proxy pools:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProxyPools();
-  }, [fetchProxyPools]);
+    return mutatePools();
+  }, [mutatePools]);
 
   const resetForm = () => {
     setEditingProxyPool(null);

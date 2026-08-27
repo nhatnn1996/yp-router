@@ -152,11 +152,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg p-4 relative overflow-hidden">
       {/* Faint grid background */}
-      <div className="landing-grid absolute inset-0 pointer-events-none" aria-hidden="true" />
+      
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">9Router</h1>
-          <p className="text-text-muted">
+          <img src="https://storage.youpass.vn/production/homepage/latest/images/Logo-power.svg" alt="YOUPASS GATEWAY" className="h-12 mx-auto mb-3 object-contain" />
+          <h1 className="text-2xl font-bold tracking-tight text-text-main mb-1">YOUPASS GATEWAY</h1>
+          <p className="text-sm text-text-muted">
             {samlAvailable
               ? "Sign in with SAML 2.0 Single Sign-On"
               : oidcAvailable

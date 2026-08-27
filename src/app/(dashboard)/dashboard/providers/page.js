@@ -19,6 +19,8 @@ import {
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
 } from "@/shared/constants/providers";
+import useSWR from "swr";
+import { fetcher, SWR_CONFIG } from "@/shared/utils/fetcher";
 import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
 import { useNotificationStore } from "@/store/notificationStore";
@@ -96,9 +98,19 @@ function getConnectionErrorTag(connection) {
 const APIKEY_INITIAL_VISIBLE = 20;
 
 export default function ProvidersPage() {
+  const { data: connsData, isLoading: connsLoading, mutate: mutateConns } = useSWR("/api/providers", fetcher, SWR_CONFIG);
+  const { data: nodesData, isLoading: nodesLoading, mutate: mutateNodes } = useSWR("/api/provider-nodes", fetcher, SWR_CONFIG);
+
   const [connections, setConnections] = useState([]);
-  const [providerNodes, setProviderNodes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const providerNodes = nodesData?.nodes || [];
+  const loading = connsLoading && !connsData;
+
+  useEffect(() => {
+    if (connsData?.connections) {
+      setConnections(connsData.connections);
+    }
+  }, [connsData]);
+
   const [showAllApikey, setShowAllApikey] = useState(false);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
@@ -144,27 +156,6 @@ export default function ProvidersPage() {
       if (ca !== cb) return cb - ca;
       return (a.name || "").localeCompare(b.name || "");
     });
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [connectionsRes, nodesRes] = await Promise.all([
-          fetch("/api/providers"),
-          fetch("/api/provider-nodes"),
-        ]);
-        const connectionsData = await connectionsRes.json();
-        const nodesData = await nodesRes.json();
-        if (connectionsRes.ok)
-          setConnections(connectionsData.connections || []);
-        if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
-      } catch (error) {
-        console.log("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
 
   const getProviderStats = (providerId, authType) => {
     const authTypes = Array.isArray(authType) ? authType : [authType];
