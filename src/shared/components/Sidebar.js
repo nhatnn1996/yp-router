@@ -4,39 +4,66 @@ import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  KeyRound,
+  Server,
+  Layers,
+  BarChart3,
+  Gauge,
+  Zap,
+  Terminal,
+  FileText,
+  Languages,
+  Radio,
+  Puzzle,
+  Boxes,
+  Network,
+  Image as ImageIcon,
+  Video,
+  Volume2,
+  Mic,
+  Globe,
+  Tv,
+  Settings,
+  ChevronDown,
+  PowerOff,
+  Copy,
+  Check,
+} from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
-import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import Button from "./Button";
 import { ConfirmModal } from "./Modal";
 import NineRemotePromoModal from "./NineRemotePromoModal";
 
-// const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
-const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt"];
-// Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
-const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
-
 const navItems = [
-  { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
-  { href: "/dashboard/providers", label: "Providers", icon: "dns" },
-  // { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" }, // Hidden
-  { href: "/dashboard/combos", label: "Combo & Vision Adapter", icon: "layers" },
-  { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
-  { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
-  { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
-  // { href: "/dashboard/pxpipe", label: "PXPIPE", icon: "image" },
-  { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
+  { href: "/dashboard/endpoint", label: "Endpoint & Key", Icon: KeyRound },
+  { href: "/dashboard/providers", label: "Providers", Icon: Server },
+  { href: "/dashboard/combos", label: "Combo & Vision Adapter", Icon: Layers },
+  { href: "/dashboard/usage", label: "Usage & Analytics", Icon: BarChart3 },
+  { href: "/dashboard/quota", label: "Quota Tracker", Icon: Gauge },
+  { href: "/dashboard/token-saver", label: "Token Saver", Icon: Zap },
+  { href: "/dashboard/cli-tools", label: "CLI Tools", Icon: Terminal },
 ];
 
-const debugItems = [
-  { href: "/dashboard/console-log", label: "Console Log", icon: "terminal" },
-  { href: "/dashboard/translator", label: "Translator", icon: "translate" },
+const mediaItems = [
+  { id: "embedding", href: "/dashboard/media-providers/embedding", label: "Embeddings", Icon: Network },
+  { id: "image", href: "/dashboard/media-providers/image", label: "Images", Icon: ImageIcon },
+  { id: "video", href: "/dashboard/media-providers/video", label: "Video", Icon: Video },
+  { id: "tts", href: "/dashboard/media-providers/tts", label: "Text to Speech", Icon: Volume2 },
+  { id: "stt", href: "/dashboard/media-providers/stt", label: "Speech to Text", Icon: Mic },
+  { id: "web", href: "/dashboard/media-providers/web", label: "Web Fetch & Search", Icon: Globe },
 ];
 
 const systemItems = [
-  { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
-  { href: "/dashboard/skills", label: "Skills", icon: "extension" },
+  { href: "/dashboard/proxy-pools", label: "Proxy Pools", Icon: Radio },
+  { href: "/dashboard/skills", label: "Skills", Icon: Puzzle },
+];
+
+const debugItems = [
+  { href: "/dashboard/console-log", label: "Console Log", Icon: FileText },
+  { href: "/dashboard/translator", label: "Translator", Icon: Languages },
 ];
 
 export default function Sidebar({ onClose }) {
@@ -55,16 +82,20 @@ export default function Sidebar({ onClose }) {
 
   useEffect(() => {
     fetch("/api/settings")
-      .then(res => res.json())
-      .then(data => { if (data.enableTranslator) setEnableTranslator(true); })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.enableTranslator) setEnableTranslator(true);
+      })
       .catch(() => {});
   }, []);
 
   // Lazy check for new npm version on mount
   useEffect(() => {
     fetch("/api/version")
-      .then(res => res.json())
-      .then(data => { if (data.hasUpdate) setUpdateInfo(data); })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.hasUpdate) setUpdateInfo(data);
+      })
       .catch(() => {});
   }, []);
 
@@ -75,15 +106,19 @@ export default function Sidebar({ onClose }) {
     return pathname.startsWith(href);
   };
 
-  // Open manual update panel (no countdown yet — user must click Copy to trigger shutdown)
+  // Open manual update panel
   const handleUpdate = () => {
     setShowUpdateModal(false);
     setIsUpdating(true);
   };
 
-  // Triggered by Copy button inside ManualUpdatePanel: copy + countdown + shutdown
+  // Triggered by Copy button inside ManualUpdatePanel
   const handleCopyAndShutdown = async () => {
-    try { await navigator.clipboard.writeText(INSTALL_CMD); } catch { /* clipboard blocked */ }
+    try {
+      await navigator.clipboard.writeText(INSTALL_CMD);
+    } catch {
+      /* clipboard blocked */
+    }
     copy(INSTALL_CMD);
     let remaining = UPDATER_CONFIG.shutdownCountdownSec;
     setShutdownCountdown(remaining);
@@ -103,17 +138,17 @@ export default function Sidebar({ onClose }) {
     setShutdownCountdown(0);
   };
 
-  // Note: legacy updater poll removed. New flow: copy install cmd + shutdown server,
-  // user runs the command manually in another terminal.
-
-
   return (
     <>
       <aside className="flex w-72 flex-col border-r border-border bg-sidebar transition-colors duration-300 min-h-full">
-        {/* Logo */}
+        {/* Logo Header */}
         <div className="px-6 py-5 flex flex-col gap-2 border-b border-border/40">
-          <Link href="/dashboard" className="flex items-center">
-            <img src="https://storage.youpass.vn/production/homepage/latest/images/Logo-power.svg" alt="YOUPASS" className="h-10 w-auto max-w-[220px] object-contain" />
+          <Link href="/dashboard" prefetch={true} className="flex items-center">
+            <img
+              src="https://storage.youpass.vn/production/homepage/latest/images/Logo-power.svg"
+              alt="YOUPASS"
+              className="h-10 w-auto max-w-[220px] object-contain"
+            />
           </Link>
           {updateInfo && (
             <div className="flex flex-col gap-1.5 rounded p-1 -m-1">
@@ -142,159 +177,165 @@ export default function Sidebar({ onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={true}
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                isActive(item.href)
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-            >
-              <span
-                className={cn(
-                  "material-symbols-outlined text-[18px]",
-                  isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
-                )}
-              >
-                {item.icon}
-              </span>
-              <span className="text-[13px] font-medium">{item.label}</span>
-            </Link>
-          ))}
-
-          {/* System section */}
-          <div className="pt-3 mt-2 space-y-0.5">
-            <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
-              System
-            </p>
-
-            {/* Media Providers accordion */}
-            <button
-              onClick={() => setMediaOpen((v) => !v)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                pathname.startsWith("/dashboard/media-providers")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-            >
-              <span className="material-symbols-outlined text-[18px]">perm_media</span>
-              <span className="text-[13px] font-medium flex-1 text-left">Media Providers</span>
-              <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                expand_more
-              </span>
-            </button>
-            {mediaOpen && (
-              <div className="pl-4">
-                {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
-                  <Link
-                    key={kind.id}
-                    href={`/dashboard/media-providers/${kind.id}`}
-                    prefetch={true}
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
-                      pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                    )}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
-                    <span className="text-sm">{kind.label}</span>
-                  </Link>
-                ))}
-                <Link
-                  key={COMBINED_WEB_ITEM.id}
-                  href={COMBINED_WEB_ITEM.href}
-                  prefetch={true}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
-                    pathname.startsWith(COMBINED_WEB_ITEM.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  )}
-                >
-                  <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
-                  <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
-                </Link>
-              </div>
-            )}
-
-            {systemItems.map((item) => (
+        <nav className="flex-1 px-4 py-3 space-y-1 overflow-y-auto custom-scrollbar">
+          {navItems.map((item) => {
+            const active = isActive(item.href);
+            const Icon = item.Icon;
+            return (
               <Link
                 key={item.href}
                 href={item.href}
                 prefetch={true}
                 onClick={onClose}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                  isActive(item.href)
-                    ? "bg-primary/10 text-primary"
+                  "flex items-center gap-3 px-3 py-2 rounded-lg transition-all group",
+                  active
+                    ? "bg-primary/10 text-primary font-semibold shadow-sm"
                     : "text-text-muted hover:bg-surface-2 hover:text-text-main"
                 )}
               >
-                <span
+                <Icon
                   className={cn(
-                    "material-symbols-outlined text-[18px]",
-                    isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                    "size-[18px] shrink-0 transition-colors",
+                    active ? "text-primary" : "text-text-muted group-hover:text-primary"
                   )}
-                >
-                  {item.icon}
-                </span>
-                <span className="text-[13px] font-medium">{item.label}</span>
+                />
+                <span className="text-[13px]">{item.label}</span>
               </Link>
-            ))}
+            );
+          })}
 
-            {/* Debug items (inside System section, before Settings) */}
-            {debugItems.map((item) => {
-              const show = item.href !== "/dashboard/translator" || enableTranslator;
-              return show ? (
+          {/* System Section */}
+          <div className="pt-3 mt-2 space-y-1">
+            <p className="px-3 text-[11px] font-bold text-text-muted/60 uppercase tracking-wider mb-1.5">
+              System
+            </p>
+
+            {/* Media Providers Accordion */}
+            <button
+              type="button"
+              onClick={() => setMediaOpen((v) => !v)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all group",
+                pathname.startsWith("/dashboard/media-providers")
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+              )}
+            >
+              <Boxes
+                className={cn(
+                  "size-[18px] shrink-0 transition-colors",
+                  pathname.startsWith("/dashboard/media-providers")
+                    ? "text-primary"
+                    : "text-text-muted group-hover:text-primary"
+                )}
+              />
+              <span className="text-[13px] flex-1 text-left">Media Providers</span>
+              <ChevronDown
+                className={cn(
+                  "size-4 text-text-muted transition-transform duration-200",
+                  mediaOpen ? "rotate-180" : ""
+                )}
+              />
+            </button>
+
+            {mediaOpen && (
+              <div className="pl-3 space-y-0.5 border-l border-border ml-5 mt-1 mb-1">
+                {mediaItems.map((kind) => {
+                  const active = pathname.startsWith(kind.href);
+                  const Icon = kind.Icon;
+                  return (
+                    <Link
+                      key={kind.id}
+                      href={kind.href}
+                      prefetch={true}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all group",
+                        active
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "size-3.5 shrink-0 transition-colors",
+                          active ? "text-primary" : "text-text-muted group-hover:text-primary"
+                        )}
+                      />
+                      <span className="text-xs">{kind.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            {systemItems.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.Icon;
+              return (
                 <Link
                   key={item.href}
                   href={item.href}
                   prefetch={true}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                    isActive(item.href)
-                      ? "bg-primary/10 text-primary"
+                    "flex items-center gap-3 px-3 py-2 rounded-lg transition-all group",
+                    active
+                      ? "bg-primary/10 text-primary font-semibold shadow-sm"
                       : "text-text-muted hover:bg-surface-2 hover:text-text-main"
                   )}
                 >
-                  <span
+                  <Icon
                     className={cn(
-                      "material-symbols-outlined text-[18px]",
-                      isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                      "size-[18px] shrink-0 transition-colors",
+                      active ? "text-primary" : "text-text-muted group-hover:text-primary"
                     )}
-                  >
-                    {item.icon}
-                  </span>
-                  <span className="text-[13px] font-medium">{item.label}</span>
+                  />
+                  <span className="text-[13px]">{item.label}</span>
                 </Link>
-              ) : null;
+              );
             })}
 
-            {/* Remote */}
-            <button
-              onClick={() => setShowRemoteModal(true)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group w-full",
-                "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-            >
-              <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
-                computer
-              </span>
-              <span className="text-[13px] font-medium">9Remote</span>
-            </button>
+            {/* Debug Section */}
+            {debugItems.map((item) => {
+              const show = item.href !== "/dashboard/translator" || enableTranslator;
+              if (!show) return null;
+              const active = isActive(item.href);
+              const Icon = item.Icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={true}
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg transition-all group",
+                    active
+                      ? "bg-primary/10 text-primary font-semibold shadow-sm"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "size-[18px] shrink-0 transition-colors",
+                      active ? "text-primary" : "text-text-muted group-hover:text-primary"
+                    )}
+                  />
+                  <span className="text-[13px]">{item.label}</span>
+                </Link>
+              );
+            })}
 
+            {/* 9Remote */}
+            <button
+              type="button"
+              onClick={() => setShowRemoteModal(true)}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all group w-full text-text-muted hover:bg-surface-2 hover:text-text-main"
+            >
+              <Tv className="size-[18px] shrink-0 text-text-muted group-hover:text-primary transition-colors" />
+              <span className="text-[13px]">9Remote</span>
+            </button>
 
             {/* Settings */}
             <Link
@@ -302,25 +343,24 @@ export default function Sidebar({ onClose }) {
               prefetch={true}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "flex items-center gap-3 px-3 py-2 rounded-lg transition-all group",
                 isActive("/dashboard/profile")
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary font-semibold shadow-sm"
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main"
               )}
             >
-              <span
+              <Settings
                 className={cn(
-                  "material-symbols-outlined text-[18px]",
-                  isActive("/dashboard/profile") ? "fill-1" : "group-hover:text-primary transition-colors"
+                  "size-[18px] shrink-0 transition-colors",
+                  isActive("/dashboard/profile")
+                    ? "text-primary"
+                    : "text-text-muted group-hover:text-primary"
                 )}
-              >
-                settings
-              </span>
-              <span className="text-[13px] font-medium">Settings</span>
+              />
+              <span className="text-[13px]">Settings</span>
             </Link>
           </div>
         </nav>
-
       </aside>
 
       {/* Remote Promo Modal */}
@@ -354,7 +394,7 @@ export default function Sidebar({ onClose }) {
           ) : (
             <div className="text-center p-8">
               <div className="flex items-center justify-center size-16 rounded-full bg-red-500/20 text-red-500 mx-auto mb-4">
-                <span className="material-symbols-outlined text-[32px]">power_off</span>
+                <PowerOff className="size-8" />
               </div>
               <h2 className="text-xl font-semibold text-white mb-2">Server Disconnected</h2>
               <p className="text-text-muted mb-6">The proxy server has been stopped.</p>
@@ -373,16 +413,26 @@ Sidebar.propTypes = {
   onClose: PropTypes.func,
 };
 
-function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdown, onCancel, countdown, isDisconnected }) {
+function ManualUpdatePanel({
+  latestVersion,
+  installCmd,
+  copied,
+  onCopyAndShutdown,
+  onCancel,
+  countdown,
+  isDisconnected,
+}) {
   const isCountingDown = countdown > 0;
   return (
     <div className="w-full max-w-lg rounded-xl bg-neutral-900/95 border border-white/10 p-6 text-white">
       <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center justify-center size-11 rounded-full bg-amber-500/20 text-amber-400">
-          <span className="material-symbols-outlined text-[24px]">content_copy</span>
+          <Copy className="size-6" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold">Update YOUPASS GATEWAY{latestVersion ? ` to v${latestVersion}` : ""}</h2>
+          <h2 className="text-lg font-semibold">
+            Update YOUPASS GATEWAY{latestVersion ? ` to v${latestVersion}` : ""}
+          </h2>
           <p className="text-xs text-white/60">
             {isDisconnected
               ? "Server stopped. Paste the command into a terminal to install."
@@ -399,9 +449,14 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
       </div>
 
       <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside mb-4">
-        <li>Click <strong>Copy & Shutdown</strong> below.</li>
+        <li>
+          Click <strong>Copy & Shutdown</strong> below.
+        </li>
         <li>Paste the command into your terminal and press Enter.</li>
-        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">9router</code> again after install.</li>
+        <li>
+          Run <code className="px-1 rounded bg-white/10 text-green-400">9router</code> again after
+          install.
+        </li>
       </ol>
 
       {isDisconnected ? (
@@ -413,8 +468,17 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
           <Button variant="secondary" onClick={onCancel} disabled={isCountingDown}>
             Cancel
           </Button>
-          <Button variant="primary" fullWidth onClick={onCopyAndShutdown} disabled={isCountingDown}>
-            {copied ? "✓ Copied — shutting down..." : isCountingDown ? `Shutting down in ${countdown}s` : "Copy & Shutdown"}
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={onCopyAndShutdown}
+            disabled={isCountingDown}
+          >
+            {copied
+              ? "✓ Copied — shutting down..."
+              : isCountingDown
+                ? `Shutting down in ${countdown}s`
+                : "Copy & Shutdown"}
           </Button>
         </div>
       )}
