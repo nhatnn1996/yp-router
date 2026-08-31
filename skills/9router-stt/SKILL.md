@@ -29,6 +29,7 @@ curl "$NINEROUTER_URL/v1/models/info?id=openai/whisper-1"
 | `prompt` | no | hint text to guide transcription |
 | `response_format` | no | `json` (default) / `text` / `verbose_json` / `srt` / `vtt` |
 | `temperature` | no | 0–1 |
+| `timestamp_granularities[]` | no | `word`, `segment` (with `response_format=verbose_json`) |
 
 ## Examples
 

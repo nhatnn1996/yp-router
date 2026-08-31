@@ -142,6 +142,7 @@ export const TABLES = {
       provider: "TEXT",
       model: "TEXT",
       connectionId: "TEXT",
+      apiKey: "TEXT",
       status: "TEXT",
       data: "TEXT NOT NULL",
     },
@@ -150,6 +151,7 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_provider ON requestDetails(provider)",
       "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
+      "CREATE INDEX IF NOT EXISTS idx_rd_apikey ON requestDetails(apiKey)",
     ],
   },
 };

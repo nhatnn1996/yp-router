@@ -221,7 +221,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
         tokens: { prompt_tokens: inTokensForLog, completion_tokens: usage.output_tokens || 0 },
         response: { content: textContent, thinking: null, finish_reason: jsonResponse.status || "unknown" },
         status: "success"
-      }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
+      }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => { });
 
       // Client is Responses API → return as-is
       if (sourceFormat === FORMATS.OPENAI_RESPONSES) {
@@ -239,9 +239,12 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
       const inTokens = (usage.input_tokens || 0) + cacheRead + cacheCreate;
       const outTokens = usage.output_tokens || 0;
       const cacheDetails = (cacheRead > 0 || cacheCreate > 0)
-        ? { prompt_tokens_details: {
-              ...(cacheRead > 0 ? { cached_tokens: cacheRead } : {}),
-              ...(cacheCreate > 0 ? { cache_creation_tokens: cacheCreate } : {}) } }
+        ? {
+          prompt_tokens_details: {
+            ...(cacheRead > 0 ? { cached_tokens: cacheRead } : {}),
+            ...(cacheCreate > 0 ? { cache_creation_tokens: cacheCreate } : {})
+          }
+        }
         : {};
       let finalResp;
 
@@ -318,7 +321,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
         finish_reason: parsed.choices?.[0]?.finish_reason || "unknown"
       },
       status: "success"
-    }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
+    }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => { });
 
     // Re-attach usage explicitly. This handler already HAS the correct usage — it is
     // the same object written to the usage DB, and for a cached Claude request that DB

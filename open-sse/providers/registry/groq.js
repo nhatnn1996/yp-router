@@ -23,9 +23,9 @@ export default {
     { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick" },
     { id: "qwen/qwen3-32b", name: "Qwen3 32B" },
     { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" },
-    { id: "whisper-large-v3", name: "Whisper Large v3", params: ["language","response_format","temperature","prompt"], kind: "stt" },
-    { id: "whisper-large-v3-turbo", name: "Whisper Large v3 Turbo", params: ["language","response_format","temperature","prompt"], kind: "stt" },
-    { id: "distil-whisper-large-v3-en", name: "Distil Whisper Large v3 EN", params: ["language","response_format","temperature","prompt"], kind: "stt" },
+    { id: "whisper-large-v3", name: "Whisper Large v3", params: ["language","response_format","temperature","prompt","timestamp_granularities[]"], kind: "stt" },
+    { id: "whisper-large-v3-turbo", name: "Whisper Large v3 Turbo", params: ["language","response_format","temperature","prompt","timestamp_granularities[]"], kind: "stt" },
+    { id: "distil-whisper-large-v3-en", name: "Distil Whisper Large v3 EN", params: ["language","response_format","temperature","prompt","timestamp_granularities[]"], kind: "stt" },
   ],
   serviceKinds: ["llm","imageToText","stt"],
   sttConfig: {

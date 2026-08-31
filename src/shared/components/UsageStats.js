@@ -32,12 +32,12 @@ function timeAgo(timestamp) {
 // Auto-update time display every second without re-rendering parent
 function TimeAgo({ timestamp }) {
   const [, setTick] = useState(0);
-  
+
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   return <>{timeAgo(timestamp)}</>;
 }
 
@@ -300,7 +300,13 @@ function TableSkeleton() {
   );
 }
 
-export default function UsageStats({ period: periodProp, setPeriod: setPeriodProp, hidePeriodSelector = false } = {}) {
+export default function UsageStats({
+  period: periodProp,
+  setPeriod: setPeriodProp,
+  apiKey: apiKeyProp,
+  setApiKey: setApiKeyProp,
+  hidePeriodSelector = false,
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -310,17 +316,25 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [tableView, setTableView] = useState("model");
   const [viewMode, setViewMode] = useState("costs");
   const [periodLocal, setPeriodLocal] = useState("today");
+  const [apiKeyLocal, setApiKeyLocal] = useState("");
   const [realtimeOverrides, setRealtimeOverrides] = useState({});
 
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
+  const apiKey = apiKeyProp ?? (searchParams.get("key") || searchParams.get("apiKey") || apiKeyLocal);
+
+  const statsQuery = useMemo(() => {
+    const p = new URLSearchParams({ period });
+    if (apiKey) p.set("apiKey", apiKey);
+    return p.toString();
+  }, [period, apiKey]);
 
   // SWR: Fetch stats with background revalidation and instant cache
   const {
     data: rawStats,
     isLoading: loading,
     isValidating: fetching,
-  } = useSWR(`/api/usage/stats?period=${period}`, fetcher, {
+  } = useSWR(`/api/usage/stats?${statsQuery}`, fetcher, {
     ...SWR_CONFIG,
     refreshInterval: 15000,
   });
@@ -374,11 +388,12 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     return () => es.close();
   }, []);
 
-  // Merge SWR cached stats with real-time SSE stream
+  // Merge SWR cached stats with real-time SSE stream (only when no key filter is applied)
   const stats = useMemo(() => {
     if (!rawStats) return null;
+    if (apiKey) return rawStats;
     return { ...rawStats, ...realtimeOverrides };
-  }, [rawStats, realtimeOverrides]);
+  }, [rawStats, realtimeOverrides, apiKey]);
 
   const toggleSort = useCallback((tableType, field) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -536,7 +551,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       )}
 
       {/* Token / Cost chart - sync period */}
-      <UsageChart period={period} />
+      <UsageChart period={period} apiKey={apiKey} />
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">

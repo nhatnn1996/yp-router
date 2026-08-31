@@ -54,7 +54,7 @@ export default {
     { id: "tts-1", name: "TTS-1", kind: "tts" },
     { id: "tts-1-hd", name: "TTS-1 HD", kind: "tts" },
     { id: "gpt-4o-mini-tts", name: "GPT-4o Mini TTS", kind: "tts" },
-    { id: "whisper-1", name: "Whisper 1", params: ["language","response_format","temperature","prompt"], kind: "stt" },
+    { id: "whisper-1", name: "Whisper 1", params: ["language","response_format","temperature","prompt","timestamp_granularities[]"], kind: "stt" },
     { id: "gpt-4o-transcribe", name: "GPT-4o Transcribe", params: ["language","response_format","temperature","prompt"], kind: "stt" },
     { id: "gpt-4o-mini-transcribe", name: "GPT-4o Mini Transcribe", params: ["language","response_format","temperature","prompt"], kind: "stt" },
     { id: "gpt-image-1", name: "GPT Image 1", params: ["n","size","quality","response_format"], kind: "image" },

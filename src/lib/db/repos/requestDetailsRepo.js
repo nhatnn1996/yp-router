@@ -107,6 +107,7 @@ async function flushToDatabase() {
             provider: item.provider || null,
             model: item.model || null,
             connectionId: item.connectionId || null,
+            apiKey: item.apiKey || null,
             timestamp: item.timestamp,
             status: item.status || null,
             latency: item.latency || {},
@@ -119,16 +120,17 @@ async function flushToDatabase() {
           };
 
           await db.run(
-            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data) VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, status = excluded.status, data = excluded.data`,
-            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.status, stringifyJson(record)]
+            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, apiKey, status, data) VALUES(?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, apiKey = excluded.apiKey, status = excluded.status, data = excluded.data`,
+            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.apiKey, record.status, stringifyJson(record)]
           );
         }
 
         const cnt = await db.get(`SELECT COUNT(*) as c FROM requestDetails`);
-        if (cnt && cnt.c > config.maxRecords) {
+        const totalCount = cnt ? parseInt(cnt.c, 10) || 0 : 0;
+        if (totalCount > config.maxRecords) {
           await db.run(
             `DELETE FROM requestDetails WHERE id IN (SELECT id FROM requestDetails ORDER BY timestamp ASC LIMIT ?)`,
-            [cnt.c - config.maxRecords]
+            [totalCount - config.maxRecords]
           );
         }
       });
@@ -142,7 +144,7 @@ async function flushToDatabase() {
 
 export async function saveRequestDetail(detail) {
   const config = await getObservabilityConfig();
-  if (!config.enabled) {return;}
+  if (!config.enabled) { return; }
 
   writeBuffer.push(detail);
 
@@ -154,7 +156,7 @@ export async function saveRequestDetail(detail) {
   } else if (!flushTimer) {
     flushTimer = setTimeout(() => {
       flushTimer = null;
-      flushToDatabase().catch(() => {});
+      flushToDatabase().catch(() => { });
     }, config.flushIntervalMs);
   }
 }
@@ -167,13 +169,21 @@ export async function getRequestDetails(filter = {}) {
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
   if (filter.connectionId) { conds.push("connectionId = ?"); params.push(filter.connectionId); }
+  if (filter.apiKey) {
+    if (filter.apiKey === "local-no-key" || filter.apiKey === "__local__" || filter.apiKey === "none") {
+      conds.push("(apiKey IS NULL OR apiKey = '' OR apiKey = 'local-no-key')");
+    } else {
+      conds.push("apiKey = ?");
+      params.push(filter.apiKey);
+    }
+  }
   if (filter.status) { conds.push("status = ?"); params.push(filter.status); }
   if (filter.startDate) { conds.push("timestamp >= ?"); params.push(new Date(filter.startDate).toISOString()); }
   if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const cntRow = await db.get(`SELECT COUNT(*) as c FROM requestDetails ${where}`, params);
-  const totalItems = cntRow ? cntRow.c : 0;
+  const totalItems = cntRow ? parseInt(cntRow.c, 10) || 0 : 0;
 
   const page = filter.page || 1;
   const pageSize = filter.pageSize || 50;
