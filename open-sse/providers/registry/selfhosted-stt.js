@@ -34,7 +34,7 @@ export default {
     },
   },
   models: [
-    { id: "whisper-1", name: "Whisper (self-hosted)", params: ["language", "response_format", "temperature", "prompt"], kind: "stt" },
+    { id: "whisper-1", name: "Whisper (self-hosted)", params: ["language", "response_format", "temperature", "prompt", "timestamp_granularities[]"], kind: "stt" },
   ],
   serviceKinds: ["stt"],
   sttConfig: {

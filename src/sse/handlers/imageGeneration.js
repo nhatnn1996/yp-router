@@ -12,6 +12,7 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat } from "open-sse/services/combo.js";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 import * as log from "../utils/logger.js";
 
 // Providers that don't require credentials (noAuth)
@@ -56,7 +57,7 @@ export async function handleImageGeneration(request) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId }),
+      handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, apiKey }),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -64,14 +65,25 @@ export async function handleImageGeneration(request) {
     });
   }
 
-  return handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId });
+  return handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKey });
 }
 
-async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId } = {}) {
+async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKey } = {}) {
+  const startTime = Date.now();
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
+  const requestData = {
+    model: modelStr,
+    prompt: body.prompt,
+    n: body.n,
+    size: body.size,
+    quality: body.quality,
+    style: body.style,
+    response_format: body.response_format,
+    output_format: body.output_format,
+  };
 
   // noAuth providers — no credential needed
   if (NO_AUTH_PROVIDERS.has(provider)) {
@@ -80,6 +92,16 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
       modelInfo: { provider, model },
       credentials: null,
       binaryOutput,
+    });
+    recordMediaDetail({
+      type: "image",
+      provider,
+      model,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.success ? { status: 200 } : { error: result.error },
     });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "Image generation failed");
@@ -124,6 +146,18 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials, model);
       }
+    });
+
+    recordMediaDetail({
+      type: "image",
+      provider,
+      model,
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.success ? { status: 200 } : { error: result.error },
     });
 
     if (result.success) return result.response;

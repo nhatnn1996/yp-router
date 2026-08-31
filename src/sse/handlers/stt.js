@@ -8,6 +8,7 @@ import { handleSttCore } from "open-sse/handlers/sttCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 import * as log from "../utils/logger.js";
 
 // Providers requiring credentials for STT
@@ -17,7 +18,29 @@ const CREDENTIALED_PROVIDERS = new Set(
     .map(([id]) => id)
 );
 
+function extractSttRequestData(formData, modelStr) {
+  const fileObj = formData.get("file");
+  const data = {
+    model: modelStr,
+    fileName: fileObj?.name || "audio",
+    fileSize: fileObj?.size || 0,
+    fileType: fileObj?.type || "unknown",
+  };
+  for (const [k, v] of formData.entries()) {
+    if (k !== "file" && typeof v === "string") {
+      if (data[k]) {
+        if (Array.isArray(data[k])) data[k].push(v);
+        else data[k] = [data[k], v];
+      } else {
+        data[k] = v;
+      }
+    }
+  }
+  return data;
+}
+
 export async function handleStt(request) {
+  const startTime = Date.now();
   let formData;
   try {
     formData = await request.formData();
@@ -28,9 +51,9 @@ export async function handleStt(request) {
   const modelStr = formData.get("model");
   log.request("POST", `/v1/audio/transcriptions | ${modelStr}`);
 
+  const apiKey = extractApiKey(request);
   const settings = await getSettings();
   if (settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -44,10 +67,21 @@ export async function handleStt(request) {
 
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
+  const requestData = extractSttRequestData(formData, modelStr);
 
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
+    recordMediaDetail({
+      type: "stt",
+      provider,
+      model,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.data || (result.error ? { error: result.error } : {}),
+    });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
   }
@@ -73,6 +107,18 @@ export async function handleStt(request) {
     log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
 
     const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
+
+    recordMediaDetail({
+      type: "stt",
+      provider,
+      model,
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.data || (result.error ? { error: result.error } : {}),
+    });
 
     if (result.success) return result.response;
 

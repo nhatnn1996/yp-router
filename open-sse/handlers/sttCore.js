@@ -6,11 +6,11 @@ import { HTTP_STATUS } from "../config/runtimeConfig.js";
 function buildAuthHeaders(cfg, token) {
   if (!token) return {};
   switch (cfg.authHeader) {
-    case "bearer":     return { "Authorization": `Bearer ${token}` };
-    case "token":      return { "Authorization": `Token ${token}` };
-    case "x-api-key":  return { "x-api-key": token };
-    case "key":        return { "Authorization": `Key ${token}` };
-    default:           return { "Authorization": `Bearer ${token}` };
+    case "bearer": return { "Authorization": `Bearer ${token}` };
+    case "token": return { "Authorization": `Token ${token}` };
+    case "x-api-key": return { "x-api-key": token };
+    case "key": return { "Authorization": `Key ${token}` };
+    default: return { "Authorization": `Bearer ${token}` };
   }
 }
 
@@ -26,9 +26,9 @@ function resolveAudioContentType(file) {
 
 async function upstreamError(res) {
   let txt = "";
-  try { txt = await res.text(); } catch {}
+  try { txt = await res.text(); } catch { }
   let msg = txt || `Upstream error (${res.status})`;
-  try { const j = JSON.parse(txt); msg = j?.error?.message || j?.error || j?.message || msg; } catch {}
+  try { const j = JSON.parse(txt); msg = j?.error?.message || j?.error || j?.message || msg; } catch { }
   return createErrorResult(res.status, typeof msg === "string" ? msg : JSON.stringify(msg));
 }
 
@@ -151,7 +151,13 @@ async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
   if (!res.ok) return upstreamError(res);
   const ct = res.headers.get("content-type") || "application/json";
   const txt = await res.text();
-  return { success: true, response: new Response(txt, { status: 200, headers: { "Content-Type": ct, "Access-Control-Allow-Origin": "*" } }) };
+  let parsed = null;
+  try { parsed = JSON.parse(txt); } catch {}
+  return {
+    success: true,
+    response: new Response(txt, { status: 200, headers: { "Content-Type": ct, "Access-Control-Allow-Origin": "*" } }),
+    data: parsed || txt,
+  };
 }
 
 function jsonResponse(obj) {
@@ -161,6 +167,7 @@ function jsonResponse(obj) {
       status: 200,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     }),
+    data: obj,
   };
 }
 
@@ -190,12 +197,12 @@ export async function handleSttCore({ provider, model, formData, credentials, st
 
   try {
     switch (cfg.format) {
-      case "deepgram":        return await transcribeDeepgram(cfg, file, model, token, formData);
-      case "assemblyai":      return await transcribeAssemblyAI(cfg, file, model, token);
-      case "nvidia-asr":      return await transcribeNvidia(cfg, file, model, token);
+      case "deepgram": return await transcribeDeepgram(cfg, file, model, token, formData);
+      case "assemblyai": return await transcribeAssemblyAI(cfg, file, model, token);
+      case "nvidia-asr": return await transcribeNvidia(cfg, file, model, token);
       case "huggingface-asr": return await transcribeHuggingFace(cfg, file, model, token);
-      case "gemini-stt":      return await transcribeGemini(cfg, file, model, token, formData);
-      default:                return await transcribeOpenAICompatible(cfg, file, model, token, formData);
+      case "gemini-stt": return await transcribeGemini(cfg, file, model, token, formData);
+      default: return await transcribeOpenAICompatible(cfg, file, model, token, formData);
     }
   } catch (err) {
     return createErrorResult(HTTP_STATUS.BAD_GATEWAY, err.message || "STT request failed");

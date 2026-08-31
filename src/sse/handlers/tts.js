@@ -9,6 +9,7 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { handleComboChat } from "open-sse/services/combo.js";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 import * as log from "../utils/logger.js";
 
 // Derived from providers.js: any TTS provider not noAuth requires stored credentials
@@ -33,9 +34,9 @@ export async function handleTts(request) {
   const style = body.style || ""; // Optional style/voice instructions (e.g. Xiaomi MiMo)
   log.request("POST", `${url.pathname} | ${modelStr} | format=${responseFormat}${language ? ` | lang=${language}` : ""}`);
 
+  const apiKey = extractApiKey(request);
   const settings = await getSettings();
   if (settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -54,7 +55,7 @@ export async function handleTts(request) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style),
+      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style, apiKey),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -62,19 +63,39 @@ export async function handleTts(request) {
     });
   }
 
-  return handleSingleModelTts(body, modelStr, responseFormat, language, style);
+  return handleSingleModelTts(body, modelStr, responseFormat, language, style, apiKey);
 }
 
-async function handleSingleModelTts(body, modelStr, responseFormat, language, style) {
+async function handleSingleModelTts(body, modelStr, responseFormat, language, style, apiKey) {
+  const startTime = Date.now();
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Voice: ${model}`);
+  const requestData = {
+    model: modelStr,
+    input: body.input,
+    voice: body.voice || model,
+    response_format: responseFormat,
+    language: language || undefined,
+    style: style || undefined,
+    speed: body.speed,
+  };
 
   // noAuth providers — no credential needed
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const result = await handleTtsCore({ provider, model, input: body.input, responseFormat, language, style });
+    recordMediaDetail({
+      type: "tts",
+      provider,
+      model,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.success ? { format: responseFormat, status: 200 } : { error: result.error },
+    });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");
   }
@@ -100,6 +121,18 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
     log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
 
     const result = await handleTtsCore({ provider, model, input: body.input, credentials, responseFormat, language, style });
+
+    recordMediaDetail({
+      type: "tts",
+      provider,
+      model,
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.success ? { format: responseFormat, status: 200 } : { error: result.error },
+    });
 
     if (result.success) return result.response;
 

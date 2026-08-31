@@ -13,6 +13,7 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 
 function exactEmbeddingUsage(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.estimated === true) return null;
@@ -30,6 +31,7 @@ function exactEmbeddingUsage(raw) {
  * @param {Request} request
  */
 export async function handleEmbeddings(request) {
+  const startTime = Date.now();
   let body;
   try {
     body = await request.json();
@@ -134,8 +136,20 @@ export async function handleEmbeddings(request) {
       }
     });
 
+    const usage = exactEmbeddingUsage(result.usage);
+    recordMediaDetail({
+      type: "embedding",
+      provider,
+      model,
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: { model: modelStr, dimensions: body.dimensions, input: typeof body.input === "string" ? body.input.slice(0, 200) : Array.isArray(body.input) ? `[${body.input.length} items]` : body.input },
+      response: result.success ? { usage, status: 200 } : { error: result.error },
+    });
+
     if (result.success) {
-      const usage = exactEmbeddingUsage(result.usage);
       if (usage) {
         saveRequestUsage({
           provider,

@@ -11,6 +11,7 @@ import { handleVideoProxyCore, getVideoConfig, sanitizeSecrets } from "open-sse/
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 import * as log from "../utils/logger.js";
 
 // Video generation is xAI-only today; requests without a provider prefix
@@ -92,6 +93,8 @@ function withConnectionHeader(response, connectionId) {
  * POST /v1/videos/{generations|edits|extensions} — async job creation proxy.
  */
 export async function handleVideoCreate(request, action) {
+  const startTime = Date.now();
+  const apiKey = extractApiKey(request);
   const authError = await requireValidApiKey(request);
   if (authError) return authError;
 
@@ -150,6 +153,18 @@ export async function handleVideoCreate(request, action) {
           testStatus: "active",
         });
       },
+    });
+
+    recordMediaDetail({
+      type: "video",
+      provider,
+      model: model || "video",
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: bodyInfo.parsed || { action },
+      response: result.success ? { action, status: 200 } : { error: result.error },
     });
 
     if (result.success) {

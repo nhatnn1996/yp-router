@@ -14,6 +14,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 
 /**
  * Handle web fetch (URL extraction) request for the SSE/Next.js server.
@@ -110,6 +111,7 @@ export async function handleFetch(request) {
 }
 
 async function handleSingleProviderFetch(body, providerInput, request, apiKey, settings) {
+  const startTime = Date.now();
   const targetUrl = body.url;
   const format = body.format;
   const maxCharacters = body.max_characters;
@@ -133,6 +135,13 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
     log.info("ROUTING", `Provider: ${providerId}`);
   }
 
+  const requestData = {
+    provider: providerId,
+    url: targetUrl,
+    format: format || "markdown",
+    max_characters: maxCharacters || undefined,
+  };
+
   // No-auth fetch path (kept for parity though no current fetch provider sets noAuth)
   if (resolvedProvider.noAuth) {
     log.info("AUTH", `\x1b[32m${providerId} no-auth mode\x1b[0m`);
@@ -144,6 +153,16 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
       providerConfig,
       credentials: null,
       log
+    });
+    recordMediaDetail({
+      type: "fetch",
+      provider: providerId,
+      model: "fetch",
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.success ? { status: 200 } : { error: result.error || "Fetch failed" },
     });
     if (result.success) {
       return new Response(JSON.stringify(result.data), {
@@ -196,6 +215,18 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
           testStatus: "active"
         });
       }
+    });
+
+    recordMediaDetail({
+      type: "fetch",
+      provider: providerId,
+      model: "fetch",
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: requestData,
+      response: result.success ? { status: 200 } : { error: result.error || "Fetch failed" },
     });
 
     if (result.success) {

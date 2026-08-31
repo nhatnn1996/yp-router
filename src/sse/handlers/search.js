@@ -13,6 +13,7 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
+import { recordMediaDetail } from "../services/recordMediaRequest.js";
 
 /**
  * Handle web search request for the SSE/Next.js server.
@@ -91,6 +92,7 @@ export async function handleSearch(request) {
 }
 
 async function handleSingleProviderSearch(body, providerInput, request, apiKey, settings) {
+  const startTime = Date.now();
   const query = body.query;
   const providerId = resolveProviderId(providerInput);
   const resolvedProvider = AI_PROVIDERS[providerId];
@@ -138,6 +140,16 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
       providerConfig,
       credentials: null,
       log
+    });
+    recordMediaDetail({
+      type: "search",
+      provider: providerId,
+      model: "search",
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: coreBody,
+      response: result.success ? { status: 200 } : { error: result.error || "Search failed" },
     });
     if (result.success) return result.response;
     return result.response;
@@ -187,6 +199,18 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials);
       }
+    });
+
+    recordMediaDetail({
+      type: "search",
+      provider: providerId,
+      model: "search",
+      connectionId: credentials?.connectionId,
+      apiKey,
+      status: result.success ? "success" : "error",
+      latencyMs: Date.now() - startTime,
+      request: coreBody,
+      response: result.success ? { status: 200 } : { error: result.error || "Search failed" },
     });
 
     if (result.success) return result.response;

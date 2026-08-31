@@ -15,6 +15,7 @@ export async function GET(request) {
     const pageSize = Number.isNaN(pageSizeRaw) ? 20 : pageSizeRaw;
     const provider = searchParams.get("provider");
     const apiKey = searchParams.get("apiKey") || searchParams.get("key");
+    const type = searchParams.get("type");
     const model = searchParams.get("model");
     const connectionId = searchParams.get("connectionId");
     const status = searchParams.get("status");
@@ -40,6 +41,7 @@ export async function GET(request) {
       pageSize
     };
 
+    if (type) filter.type = type;
     if (provider) filter.provider = provider;
     if (apiKey) filter.apiKey = apiKey;
     if (model) filter.model = model;

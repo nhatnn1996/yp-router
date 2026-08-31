@@ -14,6 +14,17 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 
+const TYPE_CONFIG = {
+  chat: { label: "Chat", icon: "chat", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
+  stt: { label: "STT", icon: "mic", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" },
+  tts: { label: "TTS", icon: "volume_up", color: "bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20" },
+  image: { label: "Image", icon: "image", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
+  video: { label: "Video", icon: "videocam", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" },
+  embedding: { label: "Embedding", icon: "data_array", color: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20" },
+  search: { label: "Search", icon: "search", color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20" },
+  fetch: { label: "Fetch", icon: "link", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+};
+
 function getCachedTokens(tokens) {
   return tokens?.cached_tokens || tokens?.cache_read_input_tokens || 0;
 }
@@ -136,6 +147,7 @@ export default function RequestDetailsTab() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [typeFilter, setTypeFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState("");
   const [apiKeyFilter, setApiKeyFilter] = useState(() => searchParams.get("key") || searchParams.get("apiKey") || "");
   const [statusFilter, setStatusFilter] = useState("");
@@ -186,13 +198,14 @@ export default function RequestDetailsTab() {
       page: page.toString(),
       pageSize: pageSize.toString(),
     });
+    if (typeFilter) params.set("type", typeFilter);
     if (providerFilter) params.set("provider", providerFilter);
     if (apiKeyFilter) params.set("apiKey", apiKeyFilter);
     if (statusFilter) params.set("status", statusFilter);
     if (startDate) params.set("startDate", startDate);
     if (endDate) params.set("endDate", endDate);
     return params.toString();
-  }, [page, pageSize, providerFilter, apiKeyFilter, statusFilter, startDate, endDate]);
+  }, [page, pageSize, typeFilter, providerFilter, apiKeyFilter, statusFilter, startDate, endDate]);
 
   // SWR: Request Details with instant memory caching
   const {
@@ -216,6 +229,7 @@ export default function RequestDetailsTab() {
       (d) =>
         (d.model && d.model.toLowerCase().includes(q)) ||
         (d.id && d.id.toLowerCase().includes(q)) ||
+        (d.type && d.type.toLowerCase().includes(q)) ||
         (d.provider && d.provider.toLowerCase().includes(q)) ||
         (d.apiKey && d.apiKey.toLowerCase().includes(q)) ||
         (d.apiKey && keyNameMap[d.apiKey]?.toLowerCase().includes(q))
@@ -273,6 +287,7 @@ export default function RequestDetailsTab() {
   };
 
   const handleClearFilters = () => {
+    setTypeFilter("");
     setProviderFilter("");
     setApiKeyFilter("");
     setStatusFilter("");
@@ -293,7 +308,7 @@ export default function RequestDetailsTab() {
     return found ? `${found.name} (${maskApiKey(found.key)})` : maskApiKey(apiKeyFilter);
   }, [apiKeyFilter, keys]);
 
-  const hasActiveFilters = Boolean(providerFilter || apiKeyFilter || statusFilter || modelFilter || startDate || endDate);
+  const hasActiveFilters = Boolean(typeFilter || providerFilter || apiKeyFilter || statusFilter || modelFilter || startDate || endDate);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -380,9 +395,41 @@ export default function RequestDetailsTab() {
             </div>
 
             {/* Filter Dropdowns */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex items-center gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex items-center gap-2">
+              {/* Type Selector */}
+              <div className="relative min-w-[130px]">
+                <select
+                  id="type-filter"
+                  value={typeFilter}
+                  onChange={(e) => {
+                    setTypeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className={cn(
+                    "h-9 w-full appearance-none rounded-lg border px-3 pr-8 text-xs font-medium focus:border-primary focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer",
+                    typeFilter
+                      ? "border-primary/50 bg-primary/5 text-primary font-semibold"
+                      : "border-border/80 bg-bg-subtle/50 text-text"
+                  )}
+                  style={{ colorScheme: "auto" }}
+                >
+                  <option value="">All Types</option>
+                  <option value="chat">Chat</option>
+                  <option value="stt">STT (Audio)</option>
+                  <option value="tts">TTS (Speech)</option>
+                  <option value="image">Image</option>
+                  <option value="video">Video</option>
+                  <option value="embedding">Embedding</option>
+                  <option value="search">Search</option>
+                  <option value="fetch">Fetch</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[16px] text-text-muted pointer-events-none">
+                  expand_more
+                </span>
+              </div>
+
               {/* API Key Selector */}
-              <div className="relative min-w-[170px]">
+              <div className="relative min-w-[160px]">
                 <select
                   id="api-key-filter"
                   value={apiKeyFilter}
@@ -409,7 +456,7 @@ export default function RequestDetailsTab() {
               </div>
 
               {/* Provider Selector */}
-              <div className="relative min-w-[150px]">
+              <div className="relative min-w-[140px]">
                 <select
                   id="provider-filter"
                   value={providerFilter}
@@ -497,7 +544,20 @@ export default function RequestDetailsTab() {
           {hasActiveFilters && (
             <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/60 text-xs">
               <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mr-1">Active filters:</span>
-              
+
+              {typeFilter && (
+                <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full text-xs font-medium">
+                  <span>Type: {TYPE_CONFIG[typeFilter]?.label || typeFilter}</span>
+                  <button
+                    type="button"
+                    onClick={() => setTypeFilter("")}
+                    className="hover:text-danger ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+
               {apiKeyFilter && (
                 <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full text-xs font-medium">
                   <span className="material-symbols-outlined text-[13px]">vpn_key</span>
@@ -561,19 +621,21 @@ export default function RequestDetailsTab() {
           <table className="w-full min-w-[980px] border-collapse text-left">
             <thead>
               <tr className="border-b border-border/80 bg-bg-subtle/50">
+                <th className="w-20 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Type</th>
                 <th className="w-24 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Status</th>
-                <th className="w-40 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Timestamp</th>
+                <th className="w-36 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Timestamp</th>
                 <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Model & Key</th>
-                <th className="w-32 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Provider</th>
-                <th className="w-40 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted text-right">Tokens (In / Out)</th>
-                <th className="w-28 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted text-right">Duration</th>
-                <th className="w-20 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted text-center">Inspect</th>
+                <th className="w-28 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Provider</th>
+                <th className="w-36 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted text-right">Tokens / Info</th>
+                <th className="w-24 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted text-right">Duration</th>
+                <th className="w-16 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted text-center">Inspect</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {isLoading && !detailsData ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 rounded" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-16 rounded-full" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-3.5 w-28" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-44" /></td>
@@ -585,7 +647,7 @@ export default function RequestDetailsTab() {
                 ))
               ) : filteredDetails.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-16 text-center">
+                  <td colSpan="8" className="py-16 text-center">
                     <div className="flex flex-col items-center justify-center gap-2 text-text-muted">
                       <div className="size-12 rounded-full bg-bg-subtle flex items-center justify-center border border-border/80 mb-1">
                         <span className="material-symbols-outlined text-[24px] text-text-muted">
@@ -615,6 +677,8 @@ export default function RequestDetailsTab() {
                   const totalTokens = promptTokens + completionTokens;
                   const totalLatency = detail.latency?.total || 0;
                   const ttft = detail.latency?.ttft || 0;
+                  const typeKey = detail.type || "chat";
+                  const typeCfg = TYPE_CONFIG[typeKey] || { label: typeKey, icon: "tune", color: "bg-bg-subtle text-text-muted border-border" };
 
                   return (
                     <tr
@@ -622,6 +686,14 @@ export default function RequestDetailsTab() {
                       onClick={() => handleViewDetail(detail)}
                       className="hover:bg-bg-hover/60 transition-colors group cursor-pointer"
                     >
+                      {/* Type */}
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border", typeCfg.color)}>
+                          <span className="material-symbols-outlined text-[13px]">{typeCfg.icon}</span>
+                          {typeCfg.label}
+                        </span>
+                      </td>
+
                       {/* Status */}
                       <td className="px-4 py-3 text-xs whitespace-nowrap">
                         <span
@@ -671,19 +743,45 @@ export default function RequestDetailsTab() {
                         </Badge>
                       </td>
 
-                      {/* Tokens Breakdown */}
+                      {/* Tokens Breakdown / Media Info */}
                       <td className="px-4 py-3 text-xs text-right whitespace-nowrap">
-                        <div className="font-mono text-xs font-semibold text-text">
-                          {formatTokens(totalTokens)}
-                        </div>
-                        <div className="text-[10px] font-mono text-text-muted flex items-center justify-end gap-1">
-                          <span className="text-primary">{formatTokens(promptTokens)} in</span>
-                          <span>/</span>
-                          <span className="text-emerald-500">{formatTokens(completionTokens)} out</span>
-                          {cachedTokens > 0 && (
-                            <span className="text-info" title={`Cached tokens: ${cachedTokens}`}>({formatTokens(cachedTokens)}c)</span>
-                          )}
-                        </div>
+                        {totalTokens > 0 ? (
+                          <>
+                            <div className="font-mono text-xs font-semibold text-text">
+                              {formatTokens(totalTokens)}
+                            </div>
+                            <div className="text-[10px] font-mono text-text-muted flex items-center justify-end gap-1">
+                              <span className="text-primary">{formatTokens(promptTokens)} in</span>
+                              <span>/</span>
+                              <span className="text-emerald-500">{formatTokens(completionTokens)} out</span>
+                              {cachedTokens > 0 && (
+                                <span className="text-info" title={`Cached tokens: ${cachedTokens}`}>({formatTokens(cachedTokens)}c)</span>
+                              )}
+                            </div>
+                          </>
+                        ) : detail.type === "stt" ? (
+                          <div className="font-mono text-[11px] text-text-muted truncate max-w-[140px] ml-auto">
+                            {detail.request?.fileName || "audio"}
+                          </div>
+                        ) : detail.type === "tts" ? (
+                          <div className="font-mono text-[11px] text-text-muted">
+                            {detail.request?.input ? `${detail.request.input.length} chars` : detail.request?.voice || "speech"}
+                          </div>
+                        ) : detail.type === "image" ? (
+                          <div className="font-mono text-[11px] text-text-muted">
+                            {detail.request?.size || "image"}
+                          </div>
+                        ) : detail.type === "search" ? (
+                          <div className="font-mono text-[11px] text-text-muted truncate max-w-[140px] ml-auto">
+                            {detail.request?.query || "search"}
+                          </div>
+                        ) : detail.type === "fetch" ? (
+                          <div className="font-mono text-[11px] text-text-muted truncate max-w-[140px] ml-auto">
+                            {detail.request?.format || "fetch"}
+                          </div>
+                        ) : (
+                          <div className="font-mono text-xs text-text-muted">—</div>
+                        )}
                       </td>
 
                       {/* Latency */}
@@ -767,6 +865,16 @@ export default function RequestDetailsTab() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5">
+                  {(() => {
+                    const t = selectedDetail.type || "chat";
+                    const cfg = TYPE_CONFIG[t] || { label: t, icon: "tune", color: "bg-bg-subtle text-text-muted border-border" };
+                    return (
+                      <span className={cn("font-mono text-xs px-2 py-0.5 rounded border font-semibold flex items-center gap-1", cfg.color)}>
+                        <span className="material-symbols-outlined text-[13px]">{cfg.icon}</span>
+                        {cfg.label}
+                      </span>
+                    );
+                  })()}
                   <Badge variant="neutral" size="sm" className="font-mono text-[10px]">
                     {providerNameMap[selectedDetail.provider] || selectedDetail.provider}
                   </Badge>

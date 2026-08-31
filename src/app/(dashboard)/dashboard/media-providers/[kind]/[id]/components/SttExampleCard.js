@@ -23,6 +23,7 @@ export function SttExampleCard({ providerId }) {
   const [prompt, setPrompt] = useState("");
   const [responseFormat, setResponseFormat] = useState("json");
   const [temperature, setTemperature] = useState("");
+  const [timestampGranularities, setTimestampGranularities] = useState([]);
   const [apiKey, setApiKey] = useState("");
   const [useTunnel, setUseTunnel] = useState(false);
   const [localEndpoint, setLocalEndpoint] = useState("");
@@ -64,11 +65,15 @@ export function SttExampleCard({ providerId }) {
 
   const endpoint = useTunnel ? tunnelEndpoint : localEndpoint;
   const modelFull = selectedModel ? `${providerAlias}/${selectedModel}` : "";
+  const hasGranularities = allowedParams.some((p) => p.startsWith("timestamp_granularities"));
+  const granularityCurl = hasGranularities && timestampGranularities.length > 0
+    ? timestampGranularities.map((g) => ` \\\n  -F "timestamp_granularities[]=${g}"`).join("")
+    : "";
 
   const curlSnippet = `curl -X POST ${endpoint}/v1/audio/transcriptions \\
   -H "Authorization: Bearer ${apiKey || "YOUR_KEY"}" \\
   -F "file=@${audioFile?.name || "audio.mp3"}" \\
-  -F "model=${modelFull}"${allowedParams.includes("language") && language ? ` \\\n  -F "language=${language}"` : ""}${allowedParams.includes("response_format") ? ` \\\n  -F "response_format=${responseFormat}"` : ""}${allowedParams.includes("temperature") && temperature ? ` \\\n  -F "temperature=${temperature}"` : ""}${allowedParams.includes("prompt") && prompt ? ` \\\n  -F "prompt=${prompt}"` : ""}`;
+  -F "model=${modelFull}"${allowedParams.includes("language") && language ? ` \\\n  -F "language=${language}"` : ""}${allowedParams.includes("response_format") ? ` \\\n  -F "response_format=${responseFormat}"` : ""}${allowedParams.includes("temperature") && temperature ? ` \\\n  -F "temperature=${temperature}"` : ""}${allowedParams.includes("prompt") && prompt ? ` \\\n  -F "prompt=${prompt}"` : ""}${granularityCurl}`;
 
   const handleRun = async () => {
     if (!audioFile || !modelFull) return;
@@ -84,6 +89,11 @@ export function SttExampleCard({ providerId }) {
       if (allowedParams.includes("response_format")) fd.append("response_format", responseFormat);
       if (allowedParams.includes("temperature") && temperature) fd.append("temperature", temperature);
       if (allowedParams.includes("prompt") && prompt) fd.append("prompt", prompt);
+      if (hasGranularities && timestampGranularities.length > 0) {
+        for (const g of timestampGranularities) {
+          fd.append("timestamp_granularities[]", g);
+        }
+      }
 
       const headers = {};
       if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
@@ -232,6 +242,49 @@ export function SttExampleCard({ providerId }) {
               <option value="verbose_json">verbose_json</option>
               <option value="vtt">vtt</option>
             </select>
+          </Row>
+        )}
+
+        {/* Timestamp granularities (if model supports) */}
+        {hasGranularities && (
+          <Row label="Timestamps">
+            <div className="flex flex-wrap items-center gap-4 py-1">
+              <label className="flex items-center gap-1.5 text-xs text-text-main cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={timestampGranularities.includes("word")}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...timestampGranularities, "word"]
+                      : timestampGranularities.filter((g) => g !== "word");
+                    setTimestampGranularities(next);
+                    if (e.target.checked && responseFormat !== "verbose_json") {
+                      setResponseFormat("verbose_json");
+                    }
+                  }}
+                  className="rounded border-border text-primary focus:ring-0"
+                />
+                word
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-text-main cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={timestampGranularities.includes("segment")}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...timestampGranularities, "segment"]
+                      : timestampGranularities.filter((g) => g !== "segment");
+                    setTimestampGranularities(next);
+                    if (e.target.checked && responseFormat !== "verbose_json") {
+                      setResponseFormat("verbose_json");
+                    }
+                  }}
+                  className="rounded border-border text-primary focus:ring-0"
+                />
+                segment
+              </label>
+              <span className="text-[11px] text-text-muted">(requires verbose_json)</span>
+            </div>
           </Row>
         )}
 

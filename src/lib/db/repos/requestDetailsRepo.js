@@ -110,6 +110,7 @@ async function flushToDatabase() {
             apiKey: item.apiKey || null,
             timestamp: item.timestamp,
             status: item.status || null,
+            type: item.type || "chat",
             latency: item.latency || {},
             tokens: item.tokens || {},
             request: truncateField(item.request, config.maxJsonSize),
@@ -120,8 +121,8 @@ async function flushToDatabase() {
           };
 
           await db.run(
-            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, apiKey, status, data) VALUES(?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, apiKey = excluded.apiKey, status = excluded.status, data = excluded.data`,
-            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.apiKey, record.status, stringifyJson(record)]
+            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, apiKey, status, type, data) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, apiKey = excluded.apiKey, status = excluded.status, type = excluded.type, data = excluded.data`,
+            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.apiKey, record.status, record.type, stringifyJson(record)]
           );
         }
 
@@ -166,6 +167,7 @@ export async function getRequestDetails(filter = {}) {
   const conds = [];
   const params = [];
 
+  if (filter.type) { conds.push("type = ?"); params.push(filter.type); }
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
   if (filter.connectionId) { conds.push("connectionId = ?"); params.push(filter.connectionId); }
