@@ -78,6 +78,18 @@ function aggregateEntryToDay(day, entry) {
   day.byAccount ||= {};
   day.byApiKey ||= {};
   day.byEndpoint ||= {};
+  day.byType ||= {};
+
+  const reqType = entry.type || (entry.endpoint?.includes("audio/transcriptions") || entry.endpoint?.includes("/stt") ? "stt"
+    : entry.endpoint?.includes("audio/speech") || entry.endpoint?.includes("/tts") ? "tts"
+    : entry.endpoint?.includes("images") ? "image"
+    : entry.endpoint?.includes("videos") ? "video"
+    : entry.endpoint?.includes("embeddings") ? "embedding"
+    : entry.endpoint?.includes("search") ? "search"
+    : entry.endpoint?.includes("fetch") ? "fetch"
+    : "chat");
+
+  day.byType[reqType] = (day.byType[reqType] || 0) + 1;
 
   if (entry.provider) addToCounter(day.byProvider, entry.provider, vals);
 
@@ -217,17 +229,27 @@ export async function getActiveRequests() {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     .map((e) => {
       const t = e.tokens || {};
+      const meta = parseJson(e.meta, {}) || {};
+      const type = e.type || meta.type || (e.endpoint?.includes("audio/transcriptions") || e.endpoint?.includes("/stt") ? "stt"
+        : e.endpoint?.includes("audio/speech") || e.endpoint?.includes("/tts") ? "tts"
+        : e.endpoint?.includes("images") ? "image"
+        : e.endpoint?.includes("videos") ? "video"
+        : e.endpoint?.includes("embeddings") ? "embedding"
+        : e.endpoint?.includes("search") ? "search"
+        : e.endpoint?.includes("fetch") ? "fetch"
+        : "chat");
       return {
         timestamp: e.timestamp, model: e.model, provider: e.provider || "",
+        type,
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         status: e.status || "ok",
       };
     })
     .filter((e) => {
-      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
+      if (!e.model && e.promptTokens === 0 && e.completionTokens === 0) return false;
       const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
+      const key = `${e.model}|${e.provider}|${e.type}|${e.promptTokens}|${e.completionTokens}|${minute}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -278,13 +300,14 @@ export async function saveRequestUsage(entry) {
         return;
       }
 
+      const metaObj = { type: entry.type || "chat" };
       await db.run(
         `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson({}),
+          stringifyJson(tokens), stringifyJson(metaObj),
         ]
       );
 
@@ -377,15 +400,25 @@ export async function getUsageStats(period = "all", apiKey = null) {
 
   // recentRequests from live history (last 100 entries enough for 20 deduped)
   const recentRows = await db.all(
-    `SELECT timestamp, provider, model, tokens, status FROM usageHistory ${apiKeyWhereClause} ORDER BY id DESC LIMIT 100`,
+    `SELECT timestamp, provider, model, tokens, status, meta, endpoint FROM usageHistory ${apiKeyWhereClause} ORDER BY id DESC LIMIT 100`,
     apiKeyParams
   );
   const seen = new Set();
   const recentRequests = recentRows
     .map((r) => {
       const t = parseJson(r.tokens, {}) || {};
+      const meta = parseJson(r.meta, {}) || {};
+      const type = meta.type || (r.endpoint?.includes("audio/transcriptions") || r.endpoint?.includes("/stt") ? "stt"
+        : r.endpoint?.includes("audio/speech") || r.endpoint?.includes("/tts") ? "tts"
+        : r.endpoint?.includes("images") ? "image"
+        : r.endpoint?.includes("videos") ? "video"
+        : r.endpoint?.includes("embeddings") ? "embedding"
+        : r.endpoint?.includes("search") ? "search"
+        : r.endpoint?.includes("fetch") ? "fetch"
+        : "chat");
       return {
         timestamp: r.timestamp, model: r.model, provider: r.provider || "",
+        type,
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
@@ -393,9 +426,9 @@ export async function getUsageStats(period = "all", apiKey = null) {
       };
     })
     .filter((e) => {
-      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
+      if (!e.model && e.promptTokens === 0 && e.completionTokens === 0) return false;
       const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
+      const key = `${e.model}|${e.provider}|${e.type}|${e.promptTokens}|${e.completionTokens}|${minute}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -405,6 +438,7 @@ export async function getUsageStats(period = "all", apiKey = null) {
   const stats = {
     totalRequests: 0,
     totalPromptTokens: 0, totalCompletionTokens: 0, totalCachedTokens: 0, totalCost: 0,
+    byType: { chat: 0, stt: 0, tts: 0, image: 0, video: 0, embedding: 0, search: 0, fetch: 0 },
     byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
     last10Minutes: [],
     pending: pendingRequests,
@@ -484,17 +518,28 @@ export async function getUsageStats(period = "all", apiKey = null) {
 
     const whereSql = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const rows = await db.all(
-      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, tokens FROM usageHistory ${whereSql} ORDER BY timestamp ASC`,
+      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, tokens, meta FROM usageHistory ${whereSql} ORDER BY timestamp ASC`,
       params
     );
 
     for (const r of rows) {
       const tokens = parseJson(r.tokens, {}) || {};
+      const meta = parseJson(r.meta, {}) || {};
       const promptTokens = tokens.prompt_tokens || r.promptTokens || 0;
       const completionTokens = tokens.completion_tokens || r.completionTokens || 0;
       const cachedTokens = tokens.cached_tokens || tokens.cache_read_input_tokens || 0;
       const entryCost = r.cost || 0;
       const providerDisplayName = providerNodeNameMap[r.provider] || r.provider;
+      const reqType = meta.type || (r.endpoint?.includes("audio/transcriptions") || r.endpoint?.includes("/stt") ? "stt"
+        : r.endpoint?.includes("audio/speech") || r.endpoint?.includes("/tts") ? "tts"
+        : r.endpoint?.includes("images") ? "image"
+        : r.endpoint?.includes("videos") ? "video"
+        : r.endpoint?.includes("embeddings") ? "embedding"
+        : r.endpoint?.includes("search") ? "search"
+        : r.endpoint?.includes("fetch") ? "fetch"
+        : "chat");
+
+      stats.byType[reqType] = (stats.byType[reqType] || 0) + 1;
 
       stats.totalPromptTokens += promptTokens;
       stats.totalCompletionTokens += completionTokens;
@@ -583,6 +628,14 @@ export async function getUsageStats(period = "all", apiKey = null) {
       stats.totalCachedTokens += day.cachedTokens || 0;
       stats.totalCost += day.cost || 0;
 
+      if (day.byType) {
+        for (const [t, count] of Object.entries(day.byType)) {
+          stats.byType[t] = (stats.byType[t] || 0) + (count || 0);
+        }
+      } else {
+        stats.byType.chat = (stats.byType.chat || 0) + (day.requests || 0);
+      }
+
       for (const [prov, p] of Object.entries(day.byProvider || {})) {
         if (!stats.byProvider[prov]) stats.byProvider[prov] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
         stats.byProvider[prov].requests += p.requests || 0;
@@ -642,7 +695,7 @@ export async function getUsageStats(period = "all", apiKey = null) {
         stats.byApiKey[akKey].completionTokens += ak.completionTokens || 0;
         stats.byApiKey[akKey].cachedTokens += ak.cachedTokens || 0;
         stats.byApiKey[akKey].cost += ak.cost || 0;
-        if (dateKey > (stats.byApiKey[akKey].lastUsed || "")) stats.byApiKey[akKey].lastUsed = dateKey;
+        if (dateKey > (stats.byAccount[accountKey]?.lastUsed || "")) stats.byApiKey[akKey].lastUsed = dateKey;
       }
 
       for (const [epKey, ep] of Object.entries(day.byEndpoint || {})) {
@@ -699,17 +752,28 @@ export async function getUsageStats(period = "all", apiKey = null) {
       cutoff = new Date(Date.now() - PERIOD_MS["24h"]).toISOString();
     }
     const filtered = await db.all(
-      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, tokens FROM usageHistory WHERE timestamp >= ?`,
+      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, tokens, meta FROM usageHistory WHERE timestamp >= ?`,
       [cutoff]
     );
 
     for (const r of filtered) {
       const tokens = parseJson(r.tokens, {}) || {};
+      const meta = parseJson(r.meta, {}) || {};
       const promptTokens = tokens.prompt_tokens || 0;
       const completionTokens = tokens.completion_tokens || 0;
       const cachedTokens = tokens.cached_tokens || tokens.cache_read_input_tokens || 0;
       const entryCost = r.cost || 0;
       const providerDisplayName = providerNodeNameMap[r.provider] || r.provider;
+      const reqType = meta.type || (r.endpoint?.includes("audio/transcriptions") || r.endpoint?.includes("/stt") ? "stt"
+        : r.endpoint?.includes("audio/speech") || r.endpoint?.includes("/tts") ? "tts"
+        : r.endpoint?.includes("images") ? "image"
+        : r.endpoint?.includes("videos") ? "video"
+        : r.endpoint?.includes("embeddings") ? "embedding"
+        : r.endpoint?.includes("search") ? "search"
+        : r.endpoint?.includes("fetch") ? "fetch"
+        : "chat");
+
+      stats.byType[reqType] = (stats.byType[reqType] || 0) + 1;
 
       stats.totalPromptTokens += promptTokens;
       stats.totalCompletionTokens += completionTokens;

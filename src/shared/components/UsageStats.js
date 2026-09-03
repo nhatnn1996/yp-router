@@ -76,16 +76,32 @@ function RecentRequests({ requests = [] }) {
             <tbody className="divide-y divide-border/50">
               {requests.map((r, i) => {
                 const ok = !r.status || r.status === "ok" || r.status === "success";
+                const hasTokens = (r.promptTokens || 0) > 0 || (r.completionTokens || 0) > 0;
                 return (
                   <tr key={i} className="hover:bg-bg-subtle transition-colors">
                     <td className="py-1.5">
                       <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} />
                     </td>
-                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>{r.model}</td>
+                    <td className="py-1.5 font-mono truncate max-w-[130px]" title={r.model}>
+                      <div className="flex items-center gap-1 min-w-0">
+                        {r.type && r.type !== "chat" && (
+                          <span className="text-[9px] uppercase px-1 py-0.5 rounded font-bold bg-purple-500/10 text-purple-500 border border-purple-500/20 shrink-0 leading-none">
+                            {r.type}
+                          </span>
+                        )}
+                        <span className="truncate">{r.model}</span>
+                      </div>
+                    </td>
                     <td className="py-1.5 text-right whitespace-nowrap">
-                      <span className="text-primary">{fmt(r.promptTokens)}↑</span>
-                      {" "}
-                      <span className="text-success">{fmt(r.completionTokens)}↓</span>
+                      {hasTokens ? (
+                        <>
+                          <span className="text-primary">{fmt(r.promptTokens)}↑</span>
+                          {" "}
+                          <span className="text-success">{fmt(r.completionTokens)}↓</span>
+                        </>
+                      ) : (
+                        <span className="text-text-muted font-mono text-[11px]">—</span>
+                      )}
                     </td>
                     <td className="py-1.5 text-right text-text-muted whitespace-nowrap"><TimeAgo timestamp={r.timestamp} /></td>
                   </tr>
@@ -199,9 +215,9 @@ const ENDPOINT_COLUMNS = [
 ];
 
 const TABLE_OPTIONS = [
+  { value: "apiKey", label: "Usage by API Key" },
   { value: "model", label: "Usage by Model" },
   { value: "account", label: "Usage by Account" },
-  { value: "apiKey", label: "Usage by API Key" },
   { value: "endpoint", label: "Usage by Endpoint" },
 ];
 
@@ -300,6 +316,51 @@ function TableSkeleton() {
   );
 }
 
+const TYPE_TABS = [
+  { id: "all", label: "All", icon: "apps" },
+  { id: "chat", label: "Chat", icon: "chat" },
+  { id: "image", label: "Image", icon: "brush" },
+  { id: "audio", label: "TTS + STT", icon: "record_voice_over" },
+];
+
+function getItemType(item) {
+  if (item?.type) return item.type;
+  const ep = (item?.endpoint || "").toLowerCase();
+  if (ep.includes("audio/transcriptions") || ep.includes("/stt")) return "stt";
+  if (ep.includes("audio/speech") || ep.includes("/tts")) return "tts";
+  if (ep.includes("images") || ep.includes("/image")) return "image";
+  if (ep.includes("videos") || ep.includes("/video")) return "video";
+  if (ep.includes("embeddings") || ep.includes("/embedding")) return "embedding";
+  if (ep.includes("search")) return "search";
+  if (ep.includes("fetch")) return "fetch";
+
+  const model = (item?.rawModel || item?.model || "").toLowerCase();
+  const provider = (item?.provider || "").toLowerCase();
+  const p = AI_PROVIDERS[provider];
+  const kinds = p?.serviceKinds;
+  if (kinds && kinds.length === 1) {
+    if (kinds[0] === "tts") return "tts";
+    if (kinds[0] === "stt") return "stt";
+    if (kinds[0] === "image") return "image";
+    if (kinds[0] === "embedding") return "embedding";
+  }
+
+  if (model.includes("dall-e") || model.includes("flux") || model.includes("sdxl") || model.includes("stable-diffusion") || model.includes("recraft") || model.includes("nano-banana")) return "image";
+  if (model.includes("whisper") || model.includes("transcrib") || model.includes("deepgram")) return "stt";
+  if (model.includes("tts") || model.includes("speech") || model.includes("eleven") || model.includes("hoaimy") || model.includes("namminh")) return "tts";
+  if (model.includes("embed")) return "embedding";
+
+  return "chat";
+}
+
+function matchesTypeTab(itemType, tabId) {
+  if (tabId === "all") return true;
+  if (tabId === "chat") return itemType === "chat";
+  if (tabId === "image") return itemType === "image" || itemType === "video";
+  if (tabId === "audio") return itemType === "tts" || itemType === "stt" || itemType === "music";
+  return itemType === tabId;
+}
+
 export default function UsageStats({
   period: periodProp,
   setPeriod: setPeriodProp,
@@ -313,7 +374,8 @@ export default function UsageStats({
   const sortBy = searchParams.get("sortBy") || "rawModel";
   const sortOrder = searchParams.get("sortOrder") || "asc";
 
-  const [tableView, setTableView] = useState("model");
+  const [selectedType, setSelectedType] = useState("all");
+  const [tableView, setTableView] = useState("apiKey");
   const [viewMode, setViewMode] = useState("costs");
   const [periodLocal, setPeriodLocal] = useState("today");
   const [apiKeyLocal, setApiKeyLocal] = useState("");
@@ -329,15 +391,25 @@ export default function UsageStats({
     return p.toString();
   }, [period, apiKey]);
 
-  // SWR: Fetch stats with background revalidation and instant cache
+  // SWR: Fetch stats with background revalidation and instant cache (5s auto-refresh)
   const {
     data: rawStats,
     isLoading: loading,
     isValidating: fetching,
+    mutate: mutateStats,
   } = useSWR(`/api/usage/stats?${statsQuery}`, fetcher, {
     ...SWR_CONFIG,
-    refreshInterval: 15000,
+    refreshInterval: 5000,
   });
+
+  const handleTypeTabChange = useCallback((newType) => {
+    setSelectedType(newType);
+    mutateStats();
+  }, [mutateStats]);
+
+  useEffect(() => {
+    mutateStats();
+  }, [selectedType, mutateStats]);
 
   // SWR: Providers & Nodes
   const { data: providersData } = useSWR("/api/providers", fetcher, SWR_CONFIG);
@@ -395,6 +467,83 @@ export default function UsageStats({
     return { ...rawStats, ...realtimeOverrides };
   }, [rawStats, realtimeOverrides, apiKey]);
 
+  // Filter stats by selected type (All, Chat, Image, Audio)
+  const filteredStats = useMemo(() => {
+    if (!stats) return null;
+    if (selectedType === "all") return stats;
+
+    const filterMap = (map) => {
+      if (!map) return {};
+      const result = {};
+      for (const [k, v] of Object.entries(map)) {
+        const itemType = getItemType(v);
+        if (matchesTypeTab(itemType, selectedType)) {
+          result[k] = v;
+        }
+      }
+      return result;
+    };
+
+    const nextByModel = filterMap(stats.byModel);
+    const nextByAccount = filterMap(stats.byAccount);
+    const nextByApiKey = filterMap(stats.byApiKey);
+    const nextByEndpoint = filterMap(stats.byEndpoint);
+
+    let totalRequests = 0;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+    let totalCachedTokens = 0;
+    let totalCost = 0;
+
+    for (const item of Object.values(nextByModel)) {
+      totalRequests += item.requests || 0;
+      totalPromptTokens += item.promptTokens || 0;
+      totalCompletionTokens += item.completionTokens || 0;
+      totalCachedTokens += item.cachedTokens || 0;
+      totalCost += item.cost || 0;
+    }
+
+    const nextRecent = (stats.recentRequests || []).filter((r) => {
+      const t = getItemType(r);
+      return matchesTypeTab(t, selectedType);
+    });
+
+    const nextByType = stats.byType ? { ...stats.byType } : {};
+
+    return {
+      ...stats,
+      totalRequests,
+      totalPromptTokens,
+      totalCompletionTokens,
+      totalCachedTokens,
+      totalCost,
+      byModel: nextByModel,
+      byAccount: nextByAccount,
+      byApiKey: nextByApiKey,
+      byEndpoint: nextByEndpoint,
+      byType: nextByType,
+      recentRequests: nextRecent,
+    };
+  }, [stats, selectedType]);
+
+  const typeCounts = useMemo(() => {
+    if (!stats) return { all: 0, chat: 0, image: 0, audio: 0 };
+    const counts = { all: stats.totalRequests || 0, chat: 0, image: 0, audio: 0 };
+    if (stats.byType) {
+      counts.chat = stats.byType.chat || 0;
+      counts.image = (stats.byType.image || 0) + (stats.byType.video || 0);
+      counts.audio = (stats.byType.tts || 0) + (stats.byType.stt || 0) + (stats.byType.music || 0);
+    } else if (stats.byModel) {
+      for (const item of Object.values(stats.byModel)) {
+        const t = getItemType(item);
+        if (matchesTypeTab(t, "chat")) counts.chat += item.requests || 0;
+        if (matchesTypeTab(t, "image")) counts.image += item.requests || 0;
+        if (matchesTypeTab(t, "audio")) counts.audio += item.requests || 0;
+      }
+    }
+    return counts;
+  }, [stats]);
+
   const toggleSort = useCallback((tableType, field) => {
     const params = new URLSearchParams(searchParams.toString());
     if (params.get("sortBy") === field) {
@@ -408,13 +557,13 @@ export default function UsageStats({
 
   // Compute active table data
   const activeTableConfig = useMemo(() => {
-    if (!stats) return null;
+    if (!filteredStats) return null;
     switch (tableView) {
       case "model": {
-        const pendingMap = stats.pending?.byModel || {};
+        const pendingMap = filteredStats.pending?.byModel || {};
         return {
           columns: MODEL_COLUMNS,
-          groupedData: groupDataByKey(sortData(stats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
+          groupedData: groupDataByKey(sortData(filteredStats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
           storageKey: "usage-stats:expanded-models",
           emptyMessage: "No usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -436,9 +585,9 @@ export default function UsageStats({
       }
       case "account": {
         const pendingMap = {};
-        if (stats?.pending?.byAccount) {
-          Object.entries(stats.byAccount || {}).forEach(([accountKey, data]) => {
-            const connPending = stats.pending.byAccount[data.connectionId];
+        if (filteredStats?.pending?.byAccount) {
+          Object.entries(filteredStats.byAccount || {}).forEach(([accountKey, data]) => {
+            const connPending = filteredStats.pending.byAccount[data.connectionId];
             if (connPending) {
               const modelKey = data.provider ? `${data.rawModel} (${data.provider})` : data.rawModel;
               pendingMap[accountKey] = connPending[modelKey] || 0;
@@ -447,7 +596,7 @@ export default function UsageStats({
         }
         return {
           columns: ACCOUNT_COLUMNS,
-          groupedData: groupDataByKey(sortData(stats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
+          groupedData: groupDataByKey(sortData(filteredStats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
           storageKey: "usage-stats:expanded-accounts",
           emptyMessage: "No account-specific usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -472,7 +621,7 @@ export default function UsageStats({
       case "apiKey": {
         return {
           columns: API_KEY_COLUMNS,
-          groupedData: groupDataByKey(sortData(stats.byApiKey, {}, sortBy, sortOrder), "keyName"),
+          groupedData: groupDataByKey(sortData(filteredStats.byApiKey, {}, sortBy, sortOrder), "keyName"),
           storageKey: "usage-stats:expanded-apikeys",
           emptyMessage: "No API key usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -498,7 +647,7 @@ export default function UsageStats({
       default: {
         return {
           columns: ENDPOINT_COLUMNS,
-          groupedData: groupDataByKey(sortData(stats.byEndpoint, {}, sortBy, sortOrder), "endpoint"),
+          groupedData: groupDataByKey(sortData(filteredStats.byEndpoint, {}, sortBy, sortOrder), "endpoint"),
           storageKey: "usage-stats:expanded-endpoints",
           emptyMessage: "No endpoint usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -521,32 +670,70 @@ export default function UsageStats({
         };
       }
     }
-  }, [stats, tableView, sortBy, sortOrder]);
+  }, [filteredStats, tableView, sortBy, sortOrder]);
+
+  const isInitialLoading = loading && !rawStats;
 
   if (!stats && !loading) return <div className="text-text-muted">Failed to load usage statistics.</div>;
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      {/* Period selector (hidden when controlled by parent) */}
-      {!hidePeriodSelector && (
-        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-          <PeriodSelector value={period} onChange={setPeriod} />
-          {fetching && (
-            <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
-          )}
+      {/* Type Filter Tabs: All / Chat / Image / TTS + STT */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1 rounded-xl bg-bg-subtle p-1 border border-border overflow-x-auto shrink-0">
+          {TYPE_TABS.map((tab) => {
+            const active = selectedType === tab.id;
+            const count = typeCounts[tab.id] ?? 0;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleTypeTabChange(tab.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                  active
+                    ? "bg-primary text-white shadow-sm font-semibold"
+                    : "text-text-muted hover:text-text hover:bg-bg-hover"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">{tab.icon}</span>
+                <span>{tab.label}</span>
+                {isInitialLoading ? (
+                  <span className="inline-block w-4 h-3 rounded-full bg-border/80 animate-pulse" />
+                ) : (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold leading-none ${
+                      active ? "bg-white/20 text-white" : "bg-black/5 dark:bg-white/10 text-text-muted"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {/* Period selector (hidden when controlled by parent) */}
+        {!hidePeriodSelector && (
+          <div className="flex items-center justify-end gap-2">
+            <PeriodSelector value={period} onChange={setPeriod} />
+            {fetching && (
+              <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Overview cards */}
-      <OverviewCards stats={stats} loading={loading} />
+      <OverviewCards stats={filteredStats} loading={isInitialLoading} />
 
       {/* Model Distribution + Recent Requests */}
-      {loading ? (
+      {isInitialLoading ? (
         <AnalyticsGridSkeleton />
       ) : (
         <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <ModelDistributionCard stats={stats} />
-          <RecentRequests requests={stats?.recentRequests || []} />
+          <ModelDistributionCard stats={filteredStats} />
+          <RecentRequests requests={filteredStats?.recentRequests || []} />
         </div>
       )}
 
@@ -581,7 +768,7 @@ export default function UsageStats({
             </button>
           </div>
         </div>
-        {loading ? (
+        {isInitialLoading ? (
           <TableSkeleton />
         ) : activeTableConfig && (
           <UsageTable

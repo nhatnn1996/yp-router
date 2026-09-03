@@ -40,7 +40,7 @@ import {
 } from "./utils";
 import Card from "@/shared/components/Card";
 import { ConfirmModal, EditConnectionModal } from "@/shared/components";
-import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
+import { USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Maps the stored providerSpecificData.authMethod to a human label for Kiro.
@@ -124,8 +124,32 @@ function formatTimeRemaining(value) {
   return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
 }
 
+const CATEGORY_TABS = [
+  { id: "all", label: "All", icon: "apps" },
+  { id: "chat", label: "Chat", icon: "chat" },
+  { id: "image", label: "Image", icon: "brush" },
+  { id: "audio", label: "TTS + STT", icon: "record_voice_over" },
+];
+
+function matchesCategory(providerId, category) {
+  if (category === "all") return true;
+  const p = AI_PROVIDERS[providerId];
+  const kinds = p?.serviceKinds || ["llm"];
+  if (category === "chat") {
+    return kinds.includes("llm") || !kinds.length;
+  }
+  if (category === "image") {
+    return kinds.includes("image") || kinds.includes("imageToText") || kinds.includes("video");
+  }
+  if (category === "audio") {
+    return kinds.includes("tts") || kinds.includes("stt") || kinds.includes("music");
+  }
+  return true;
+}
+
 export default function ProviderLimits() {
   const { copied, copy } = useCopyToClipboard();
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [connections, setConnections] = useState([]);
   const [quotaData, setQuotaData] = useState({});
   const [loading, setLoading] = useState({});
@@ -696,6 +720,21 @@ export default function ProviderLimits() {
     [connections, quotaData, expiringFirst, providerFilter, quotaSortMode],
   );
 
+  const categorizedConnections = useMemo(() => {
+    if (categoryFilter === "all") return sortedConnections;
+    return sortedConnections.filter((c) => matchesCategory(c.provider, categoryFilter));
+  }, [sortedConnections, categoryFilter]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = { all: connections.length, chat: 0, image: 0, audio: 0 };
+    for (const c of connections) {
+      if (matchesCategory(c.provider, "chat")) counts.chat++;
+      if (matchesCategory(c.provider, "image")) counts.image++;
+      if (matchesCategory(c.provider, "audio")) counts.audio++;
+    }
+    return counts;
+  }, [connections]);
+
   // Connection is depleted when any quota entry hit the threshold
   const isConnectionDepleted = (conn) => {
     const quotas = quotaData[conn.id]?.quotas;
@@ -731,14 +770,14 @@ export default function ProviderLimits() {
   );
 
   const handleDisableDepleted = () => {
-    const ids = sortedConnections
+    const ids = categorizedConnections
       .filter((c) => (c.isActive ?? true) && isConnectionDepleted(c))
       .map((c) => c.id);
     bulkSetActive(ids, false);
   };
 
   const handleEnableAvailable = () => {
-    const ids = sortedConnections
+    const ids = categorizedConnections
       .filter((c) => !(c.isActive ?? true) && !isConnectionDepleted(c))
       .map((c) => c.id);
     bulkSetActive(ids, true);
@@ -797,8 +836,42 @@ export default function ProviderLimits() {
   return (
     <div className="space-y-6">
       {/* Header Controls */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Category Tabs: All / Chat / Image / TTS + STT */}
+        <div className="flex items-center gap-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1 border border-black/5 dark:border-white/5 overflow-x-auto shrink-0">
+          {CATEGORY_TABS.map((tab) => {
+            const active = categoryFilter === tab.id;
+            const count = categoryCounts[tab.id] ?? 0;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCategoryFilter(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                  active
+                    ? "bg-primary text-white shadow-sm font-semibold"
+                    : "text-text-muted hover:text-text-primary hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">{tab.icon}</span>
+                <span>{tab.label}</span>
+                {connectionsLoading && connections.length === 0 ? (
+                  <span className="inline-block w-4 h-3 rounded-full bg-black/10 dark:bg-white/10 animate-pulse" />
+                ) : (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold leading-none ${
+                      active ? "bg-white/20 text-white" : "bg-black/5 dark:bg-white/10 text-text-muted"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
           <div className="relative">
             <button
               type="button"
@@ -1020,8 +1093,23 @@ export default function ProviderLimits() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {sortedConnections.map((conn) => {
+      {categorizedConnections.length === 0 ? (
+        <Card padding="lg">
+          <div className="text-center py-10">
+            <span className="material-symbols-outlined text-[48px] text-text-muted opacity-20">
+              {CATEGORY_TABS.find((t) => t.id === categoryFilter)?.icon || "filter_list_off"}
+            </span>
+            <h3 className="mt-3 text-base font-semibold text-text-primary">
+              No {CATEGORY_TABS.find((t) => t.id === categoryFilter)?.label || ""} Connections Found
+            </h3>
+            <p className="mt-1.5 text-xs text-text-muted max-w-sm mx-auto">
+              There are currently no active accounts or providers connected under this category.
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {categorizedConnections.map((conn) => {
           const quota = quotaData[conn.id];
           const isLoading = loading[conn.id];
           const error = errors[conn.id];
@@ -1291,6 +1379,7 @@ export default function ProviderLimits() {
           );
         })}
       </div>
+      )}
 
       <div className="rounded-xl border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex flex-wrap items-center justify-between gap-2">

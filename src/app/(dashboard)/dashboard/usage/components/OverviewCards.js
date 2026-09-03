@@ -7,6 +7,17 @@ import { Skeleton } from "@/shared/components/Loading";
 const fmt = (n) => new Intl.NumberFormat().format(n || 0);
 const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
 
+const TYPE_META = [
+  { key: "chat", label: "chat", color: "text-blue-500 font-medium" },
+  { key: "stt", label: "stt", color: "text-purple-500 font-semibold" },
+  { key: "tts", label: "tts", color: "text-pink-500 font-semibold" },
+  { key: "image", label: "img", color: "text-amber-500 font-semibold" },
+  { key: "video", label: "vid", color: "text-rose-500 font-semibold" },
+  { key: "embedding", label: "emb", color: "text-teal-500 font-semibold" },
+  { key: "search", label: "search", color: "text-cyan-500 font-semibold" },
+  { key: "fetch", label: "fetch", color: "text-indigo-500 font-semibold" },
+];
+
 export default function OverviewCards({ stats = {}, loading = false }) {
   if (loading) {
     return (
@@ -22,11 +33,30 @@ export default function OverviewCards({ stats = {}, loading = false }) {
     );
   }
 
+  const activeTypes = stats.byType
+    ? TYPE_META.filter((m) => (stats.byType[m.key] || 0) > 0).map((m) => ({
+        ...m,
+        count: stats.byType[m.key],
+      }))
+    : [];
+
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 sm:gap-4">
-      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
-        <span className="text-text-muted text-xs uppercase font-semibold tracking-wider">Total Requests</span>
-        <span className="truncate text-2xl font-bold">{fmt(stats.totalRequests)}</span>
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3 justify-between">
+        <div>
+          <span className="text-text-muted text-xs uppercase font-semibold tracking-wider">Total Requests</span>
+          <div className="truncate text-2xl font-bold">{fmt(stats.totalRequests)}</div>
+        </div>
+        {activeTypes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-mono leading-none pt-0.5">
+            {activeTypes.map((t, idx) => (
+              <span key={t.key} className={t.color} title={`${fmt(t.count)} ${t.key.toUpperCase()} requests`}>
+                {idx > 0 && <span className="text-text-muted/50 mr-1.5">·</span>}
+                {fmt(t.count)} {t.label}
+              </span>
+            ))}
+          </div>
+        )}
       </Card>
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-xs uppercase font-semibold tracking-wider">Total Input Tokens</span>
