@@ -8,6 +8,10 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* Hide icon ligature text until font is ready */
+.material-symbols-outlined { opacity: 0; }
+.fonts-loaded .material-symbols-outlined { opacity: 1; transition: opacity .12s ease-out; }
+
 /* ============================================================
    Cloudflare Style Palette — Minimalist, Refined, Enterprise
    Iconic Cloudflare Orange (#F38020), Cool Slate Neutral Bases
