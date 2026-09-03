@@ -45,7 +45,11 @@ export async function GET() {
         }
       };
 
-      await state.send();
+      // Send immediate lightweight in-memory status on connect (0ms, no DB query)
+      try {
+        const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ activeRequests, recentRequests, errorProvider })}\n\n`));
+      } catch {}
 
       statsEmitter.on("update", state.send);
       statsEmitter.on("pending", state.sendPending);

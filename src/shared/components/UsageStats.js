@@ -41,7 +41,10 @@ function TimeAgo({ timestamp }) {
   return <>{timeAgo(timestamp)}</>;
 }
 
-function RecentRequests({ requests = [] }) {
+function RecentRequests({ requests = [], loading = false }) {
+  if (loading && !requests.length) {
+    return <RecentRequestsSkeleton />;
+  }
   return (
     <Card className="flex min-w-0 flex-col overflow-hidden" padding="md" style={{ minHeight: 480 }}>
       {/* Header */}
@@ -228,68 +231,71 @@ const PERIODS = [
   { value: "30d", label: "30D" },
   { value: "60d", label: "60D" },
 ];
-function AnalyticsGridSkeleton() {
+function ModelDistributionSkeleton() {
   return (
-    <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-      <Card className="flex min-w-0 flex-col gap-4 p-6" style={{ minHeight: 480 }}>
-        <div className="flex items-center justify-between border-b border-border pb-3">
-          <div className="flex items-center gap-2">
-            <Skeleton className="size-8 rounded-lg" />
-            <div className="space-y-1">
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-3 w-48" />
-            </div>
+    <Card className="flex min-w-0 flex-col gap-4 p-6" style={{ minHeight: 480 }}>
+      <div className="flex items-center justify-between border-b border-border pb-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-8 rounded-lg" />
+          <div className="space-y-1">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-3 w-48" />
           </div>
-          <Skeleton className="h-7 w-40 rounded-lg" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center flex-1">
-          <div className="md:col-span-5 flex items-center justify-center">
-            <Skeleton className="size-44 rounded-full" />
-          </div>
-          <div className="md:col-span-7 flex flex-col gap-3">
-            <Skeleton className="h-3 w-32 mb-1" />
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <div className="flex justify-between">
-                  <Skeleton className="h-3 w-28" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-                <Skeleton className="h-1.5 w-full rounded-full" />
+        <Skeleton className="h-7 w-40 rounded-lg" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center flex-1">
+        <div className="md:col-span-5 flex items-center justify-center">
+          <Skeleton className="size-44 rounded-full" />
+        </div>
+        <div className="md:col-span-7 flex flex-col gap-3">
+          <Skeleton className="h-3 w-32 mb-1" />
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="flex justify-between">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-3 w-16" />
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="pt-3 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-11 rounded-lg" />
-          ))}
-        </div>
-      </Card>
-      <Card className="flex min-w-0 flex-col p-6" style={{ minHeight: 480 }}>
-        <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
-          <div className="flex items-center gap-2">
-            <Skeleton className="size-8 rounded-lg" />
-            <div className="space-y-1">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-3 w-36" />
-            </div>
-          </div>
-          <Skeleton className="h-5 w-14 rounded-full" />
-        </div>
-        <div className="flex flex-col gap-2.5 flex-1">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="flex items-center justify-between py-2 border-b border-border/40">
-              <div className="flex items-center gap-2">
-                <Skeleton className="size-2 rounded-full" />
-                <Skeleton className="h-3.5 w-24" />
-              </div>
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-1.5 w-full rounded-full" />
             </div>
           ))}
         </div>
-      </Card>
-    </div>
+      </div>
+      <div className="pt-3 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-11 rounded-lg" />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function RecentRequestsSkeleton() {
+  return (
+    <Card className="flex min-w-0 flex-col p-6" style={{ minHeight: 480 }}>
+      <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-8 rounded-lg" />
+          <div className="space-y-1">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-36" />
+          </div>
+        </div>
+        <Skeleton className="h-5 w-14 rounded-full" />
+      </div>
+      <div className="flex flex-col gap-2.5 flex-1">
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="flex items-center justify-between py-2 border-b border-border/40">
+            <div className="flex items-center gap-2">
+              <Skeleton className="size-2 rounded-full" />
+              <Skeleton className="h-3.5 w-24" />
+            </div>
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -391,53 +397,38 @@ export default function UsageStats({
     return p.toString();
   }, [period, apiKey]);
 
-  // SWR: Fetch stats with background revalidation and instant cache (5s auto-refresh)
+  // SWR: 1. Instant Recent Requests (from RAM ring buffer < 30ms)
+  const { data: recentData, isLoading: recentLoading } = useSWR(
+    "/api/usage/recent",
+    fetcher,
+    { ...SWR_CONFIG, refreshInterval: 5000 }
+  );
+
+  // SWR: 2. Fast Summary for OverviewCards & ModelDistribution (< 150ms)
+  const {
+    data: summaryData,
+    isLoading: summaryLoading,
+  } = useSWR(`/api/usage/summary?${statsQuery}`, fetcher, {
+    ...SWR_CONFIG,
+    refreshInterval: 5000,
+    keepPreviousData: true,
+  });
+
+  // SWR: 3. Full Detailed Stats for UsageTable
   const {
     data: rawStats,
-    isLoading: loading,
+    isLoading: tableLoading,
     isValidating: fetching,
-    mutate: mutateStats,
   } = useSWR(`/api/usage/stats?${statsQuery}`, fetcher, {
     ...SWR_CONFIG,
     refreshInterval: 5000,
+    dedupingInterval: 3000,
+    keepPreviousData: true,
   });
 
   const handleTypeTabChange = useCallback((newType) => {
     setSelectedType(newType);
-    mutateStats();
-  }, [mutateStats]);
-
-  useEffect(() => {
-    mutateStats();
-  }, [selectedType, mutateStats]);
-
-  // SWR: Providers & Nodes
-  const { data: providersData } = useSWR("/api/providers", fetcher, SWR_CONFIG);
-  const { data: nodesData } = useSWR("/api/provider-nodes", fetcher, SWR_CONFIG);
-
-  const providers = useMemo(() => {
-    const nodeNameMap = {};
-    for (const node of nodesData?.nodes || []) {
-      nodeNameMap[node.id] = node.name;
-    }
-    const seen = new Set();
-    const unique = (providersData?.connections || [])
-      .filter((c) => {
-        if (c.isActive === false) return false;
-        if (!isLLMProvider(c.provider)) return false;
-        if (seen.has(c.provider)) return false;
-        seen.add(c.provider);
-        return true;
-      })
-      .map((c) => ({
-        ...c,
-        nodeName: nodeNameMap[c.provider] || null,
-      }));
-    const noAuthProviders = Object.values(FREE_PROVIDERS)
-      .filter((p) => p.noAuth && !seen.has(p.id) && isLLMProvider(p.id))
-      .map((p) => ({ provider: p.id, name: p.name }));
-    return [...unique, ...noAuthProviders];
-  }, [providersData, nodesData]);
+  }, []);
 
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
@@ -467,8 +458,60 @@ export default function UsageStats({
     return { ...rawStats, ...realtimeOverrides };
   }, [rawStats, realtimeOverrides, apiKey]);
 
-  // Filter stats by selected type (All, Chat, Image, Audio)
-  const filteredStats = useMemo(() => {
+  // Fast Summary stats (used by OverviewCards and ModelDistributionCard)
+  const filteredSummary = useMemo(() => {
+    const s = summaryData || stats;
+    if (!s) return null;
+    if (selectedType === "all") return s;
+
+    const filterMap = (map) => {
+      if (!map) return {};
+      const result = {};
+      for (const [k, v] of Object.entries(map)) {
+        const itemType = getItemType(v);
+        if (matchesTypeTab(itemType, selectedType)) {
+          result[k] = v;
+        }
+      }
+      return result;
+    };
+
+    const nextByModel = filterMap(s.byModel);
+    let totalRequests = 0;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+    let totalCachedTokens = 0;
+    let totalCost = 0;
+
+    for (const item of Object.values(nextByModel)) {
+      totalRequests += item.requests || 0;
+      totalPromptTokens += item.promptTokens || 0;
+      totalCompletionTokens += item.completionTokens || 0;
+      totalCachedTokens += item.cachedTokens || 0;
+      totalCost += item.cost || 0;
+    }
+
+    return {
+      ...s,
+      totalRequests,
+      totalPromptTokens,
+      totalCompletionTokens,
+      totalCachedTokens,
+      totalCost,
+      byModel: nextByModel,
+      byType: s.byType ? { ...s.byType } : {},
+    };
+  }, [summaryData, stats, selectedType]);
+
+  // Recent requests list (for Recent Activity card)
+  const recentRequestsList = useMemo(() => {
+    const list = realtimeOverrides.recentRequests || recentData?.recentRequests || stats?.recentRequests || [];
+    if (selectedType === "all") return list;
+    return list.filter((r) => matchesTypeTab(getItemType(r), selectedType));
+  }, [realtimeOverrides.recentRequests, recentData?.recentRequests, stats?.recentRequests, selectedType]);
+
+  // Detailed stats (used by UsageTable)
+  const filteredTableStats = useMemo(() => {
     if (!stats) return null;
     if (selectedType === "all") return stats;
 
@@ -484,57 +527,25 @@ export default function UsageStats({
       return result;
     };
 
-    const nextByModel = filterMap(stats.byModel);
-    const nextByAccount = filterMap(stats.byAccount);
-    const nextByApiKey = filterMap(stats.byApiKey);
-    const nextByEndpoint = filterMap(stats.byEndpoint);
-
-    let totalRequests = 0;
-    let totalPromptTokens = 0;
-    let totalCompletionTokens = 0;
-    let totalCachedTokens = 0;
-    let totalCost = 0;
-
-    for (const item of Object.values(nextByModel)) {
-      totalRequests += item.requests || 0;
-      totalPromptTokens += item.promptTokens || 0;
-      totalCompletionTokens += item.completionTokens || 0;
-      totalCachedTokens += item.cachedTokens || 0;
-      totalCost += item.cost || 0;
-    }
-
-    const nextRecent = (stats.recentRequests || []).filter((r) => {
-      const t = getItemType(r);
-      return matchesTypeTab(t, selectedType);
-    });
-
-    const nextByType = stats.byType ? { ...stats.byType } : {};
-
     return {
       ...stats,
-      totalRequests,
-      totalPromptTokens,
-      totalCompletionTokens,
-      totalCachedTokens,
-      totalCost,
-      byModel: nextByModel,
-      byAccount: nextByAccount,
-      byApiKey: nextByApiKey,
-      byEndpoint: nextByEndpoint,
-      byType: nextByType,
-      recentRequests: nextRecent,
+      byModel: filterMap(stats.byModel),
+      byAccount: filterMap(stats.byAccount),
+      byApiKey: filterMap(stats.byApiKey),
+      byEndpoint: filterMap(stats.byEndpoint),
     };
   }, [stats, selectedType]);
 
   const typeCounts = useMemo(() => {
-    if (!stats) return { all: 0, chat: 0, image: 0, audio: 0 };
-    const counts = { all: stats.totalRequests || 0, chat: 0, image: 0, audio: 0 };
-    if (stats.byType) {
-      counts.chat = stats.byType.chat || 0;
-      counts.image = (stats.byType.image || 0) + (stats.byType.video || 0);
-      counts.audio = (stats.byType.tts || 0) + (stats.byType.stt || 0) + (stats.byType.music || 0);
-    } else if (stats.byModel) {
-      for (const item of Object.values(stats.byModel)) {
+    const s = summaryData || stats;
+    if (!s) return { all: 0, chat: 0, image: 0, audio: 0 };
+    const counts = { all: s.totalRequests || 0, chat: 0, image: 0, audio: 0 };
+    if (s.byType) {
+      counts.chat = s.byType.chat || 0;
+      counts.image = (s.byType.image || 0) + (s.byType.video || 0);
+      counts.audio = (s.byType.tts || 0) + (s.byType.stt || 0) + (s.byType.music || 0);
+    } else if (s.byModel) {
+      for (const item of Object.values(s.byModel)) {
         const t = getItemType(item);
         if (matchesTypeTab(t, "chat")) counts.chat += item.requests || 0;
         if (matchesTypeTab(t, "image")) counts.image += item.requests || 0;
@@ -542,7 +553,7 @@ export default function UsageStats({
       }
     }
     return counts;
-  }, [stats]);
+  }, [summaryData, stats]);
 
   const toggleSort = useCallback((tableType, field) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -557,13 +568,13 @@ export default function UsageStats({
 
   // Compute active table data
   const activeTableConfig = useMemo(() => {
-    if (!filteredStats) return null;
+    if (!filteredTableStats) return null;
     switch (tableView) {
       case "model": {
-        const pendingMap = filteredStats.pending?.byModel || {};
+        const pendingMap = filteredTableStats.pending?.byModel || {};
         return {
           columns: MODEL_COLUMNS,
-          groupedData: groupDataByKey(sortData(filteredStats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
+          groupedData: groupDataByKey(sortData(filteredTableStats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
           storageKey: "usage-stats:expanded-models",
           emptyMessage: "No usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -585,9 +596,9 @@ export default function UsageStats({
       }
       case "account": {
         const pendingMap = {};
-        if (filteredStats?.pending?.byAccount) {
-          Object.entries(filteredStats.byAccount || {}).forEach(([accountKey, data]) => {
-            const connPending = filteredStats.pending.byAccount[data.connectionId];
+        if (filteredTableStats?.pending?.byAccount) {
+          Object.entries(filteredTableStats.byAccount || {}).forEach(([accountKey, data]) => {
+            const connPending = filteredTableStats.pending.byAccount[data.connectionId];
             if (connPending) {
               const modelKey = data.provider ? `${data.rawModel} (${data.provider})` : data.rawModel;
               pendingMap[accountKey] = connPending[modelKey] || 0;
@@ -596,7 +607,7 @@ export default function UsageStats({
         }
         return {
           columns: ACCOUNT_COLUMNS,
-          groupedData: groupDataByKey(sortData(filteredStats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
+          groupedData: groupDataByKey(sortData(filteredTableStats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
           storageKey: "usage-stats:expanded-accounts",
           emptyMessage: "No account-specific usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -621,7 +632,7 @@ export default function UsageStats({
       case "apiKey": {
         return {
           columns: API_KEY_COLUMNS,
-          groupedData: groupDataByKey(sortData(filteredStats.byApiKey, {}, sortBy, sortOrder), "keyName"),
+          groupedData: groupDataByKey(sortData(filteredTableStats.byApiKey, {}, sortBy, sortOrder), "keyName"),
           storageKey: "usage-stats:expanded-apikeys",
           emptyMessage: "No API key usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -647,7 +658,7 @@ export default function UsageStats({
       default: {
         return {
           columns: ENDPOINT_COLUMNS,
-          groupedData: groupDataByKey(sortData(filteredStats.byEndpoint, {}, sortBy, sortOrder), "endpoint"),
+          groupedData: groupDataByKey(sortData(filteredTableStats.byEndpoint, {}, sortBy, sortOrder), "endpoint"),
           storageKey: "usage-stats:expanded-endpoints",
           emptyMessage: "No endpoint usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -670,11 +681,11 @@ export default function UsageStats({
         };
       }
     }
-  }, [filteredStats, tableView, sortBy, sortOrder]);
+  }, [filteredTableStats, tableView, sortBy, sortOrder]);
 
-  const isInitialLoading = loading && !rawStats;
-
-  if (!stats && !loading) return <div className="text-text-muted">Failed to load usage statistics.</div>;
+  const summaryLoadingState = summaryLoading && !summaryData && !stats;
+  const recentLoadingState = recentLoading && !recentData && !realtimeOverrides.recentRequests && !stats?.recentRequests;
+  const tableLoadingState = tableLoading && !rawStats;
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -697,7 +708,7 @@ export default function UsageStats({
               >
                 <span className="material-symbols-outlined text-[15px]">{tab.icon}</span>
                 <span>{tab.label}</span>
-                {isInitialLoading ? (
+                {summaryLoadingState ? (
                   <span className="inline-block w-4 h-3 rounded-full bg-border/80 animate-pulse" />
                 ) : (
                   <span
@@ -724,20 +735,23 @@ export default function UsageStats({
         )}
       </div>
 
-      {/* Overview cards */}
-      <OverviewCards stats={filteredStats} loading={isInitialLoading} />
+      {/* Overview cards - renders as soon as summary arrives (< 150ms) */}
+      <OverviewCards stats={filteredSummary} loading={summaryLoadingState} />
 
-      {/* Model Distribution + Recent Requests */}
-      {isInitialLoading ? (
-        <AnalyticsGridSkeleton />
-      ) : (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <ModelDistributionCard stats={filteredStats} />
-          <RecentRequests requests={filteredStats?.recentRequests || []} />
-        </div>
-      )}
+      {/* Model Distribution + Recent Requests (Split independent rendering) */}
+      <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        {summaryLoadingState ? (
+          <ModelDistributionSkeleton />
+        ) : (
+          <ModelDistributionCard stats={filteredSummary} />
+        )}
+        <RecentRequests
+          requests={recentRequestsList}
+          loading={recentLoadingState}
+        />
+      </div>
 
-      {/* Token / Cost chart - sync period */}
+      {/* Token / Cost chart - sync period (independent fetch) */}
       <UsageChart period={period} apiKey={apiKey} />
 
       {/* Table with dropdown selector */}
@@ -768,7 +782,7 @@ export default function UsageStats({
             </button>
           </div>
         </div>
-        {isInitialLoading ? (
+        {tableLoadingState ? (
           <TableSkeleton />
         ) : activeTableConfig && (
           <UsageTable

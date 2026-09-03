@@ -80,7 +80,7 @@ export default function ProviderDetailPage() {
   const [oneByOneResults, setOneByOneResults] = useState({});
   const [oneByOneSummary, setOneByOneSummary] = useState(null);
   const stopOneByOneRef = useRef(false);
-  const [importingQoderModels, setImportingQoderModels] = useState(false);
+  const [syncingModels, setSyncingModels] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -559,59 +559,67 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Fetch Qoder model list and automatically add to available models
-  const handleImportQoderModels = async () => {
-    if (importingQoderModels) return;
+  // Fetch provider live model list and automatically add new models to database
+  const handleSyncModels = async (isAuto = false) => {
+    if (syncingModels) return;
     const activeConnection = connections.find((conn) => conn.isActive !== false);
-    if (!activeConnection) {
-      alert(translate("Please add an active Qoder connection first"));
+    if (!activeConnection && !isCompatible && !isFreeNoAuth) {
+      if (!isAuto) alert(translate("Please add an active connection first"));
       return;
     }
 
-    setImportingQoderModels(true);
+    setSyncingModels(true);
     try {
-      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
+      const res = await fetch(`/api/providers/${providerId}/sync-models`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectionId: activeConnection?.id }),
+      });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || translate("Failed to fetch models"));
-        return;
-      }
-      const models = data.models || [];
-      if (models.length === 0) {
-        alert(translate("No models returned"));
+        if (!isAuto) alert(data.error || translate("Failed to fetch models"));
         return;
       }
 
-      let importedCount = 0;
-      for (const model of models) {
-        const modelId = model.id || model.name;
-        if (!modelId) continue;
-        
-        // Qoder model ID format may be "qoder/auto" or "auto", need to remove prefix
-        const cleanModelId = modelId.replace(/^qoder\//, "");
-        const alreadyExists = customModels.some(
-          (entry) => entry.providerAlias === providerStorageAlias && entry.id === cleanModelId && (entry.kind || entry.type || "llm") === "llm"
-        ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${cleanModelId}`);
-        if (alreadyExists) {
-          continue;
+      if (data.addedCount > 0) {
+        await fetchCustomModels();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("customModelChanged"));
         }
-
-        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias);
-        importedCount += 1;
+        if (!isAuto) {
+          alert(translate("Successfully added") + ` ${data.addedCount} ` + translate("new models"));
+        }
+      } else if (!isAuto) {
+        alert(translate("All models already up to date, no new models found"));
       }
-      
-      if (importedCount === 0) {
-        alert(translate("All models already exist, no new models added"));
-      } else {
-        alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(`last_model_sync_${providerId}`, Date.now().toString());
       }
     } catch (error) {
-      console.log("Error importing Qoder models:", error);
-      alert(translate("Error fetching models") + ": " + error.message);
+      console.log("Error syncing models:", error);
+      if (!isAuto) {
+        alert(translate("Error fetching models") + ": " + error.message);
+      }
     } finally {
-      setImportingQoderModels(false);
+      setSyncingModels(false);
     }
   };
+
+  // Auto-sync models on visit (cooldown 1 hour)
+  useEffect(() => {
+    if (loading || connections.length === 0) return;
+    const hasActive = connections.some((c) => c.isActive !== false);
+    if (!hasActive && !isCompatible && !isFreeNoAuth) return;
+
+    const lastSyncStr = typeof window !== "undefined" ? window.localStorage.getItem(`last_model_sync_${providerId}`) : null;
+    const lastSync = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+    const ONE_HOUR = 60 * 60 * 1000;
+
+    if (!lastSync || Date.now() - lastSync > ONE_HOUR) {
+      handleSyncModels(true);
+    }
+  }, [loading, connections, providerId, isCompatible, isFreeNoAuth]);
 
   const handleRunOneByOneTest = async () => {
     if (oneByOneRunning || connections.length === 0) return;
@@ -1173,17 +1181,18 @@ export default function ProviderDetailPage() {
           Add Model
         </button>
 
-        {/* Import Qoder models button — only show for qoder provider */}
-        {providerId === "qoder" && connections.some((conn) => conn.isActive !== false) && (
+        {/* Sync Live Models button — available for any provider with active connection */}
+        {(connections.some((conn) => conn.isActive !== false) || isCompatible) && (
           <button
-            onClick={handleImportQoderModels}
-            disabled={importingQoderModels}
+            onClick={() => handleSyncModels(false)}
+            disabled={syncingModels}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Fetch live models from provider API and save new ones to database"
           >
-            <span className="material-symbols-outlined text-sm" style={importingQoderModels ? { animation: "spin 1s linear infinite" } : undefined}>
-              {importingQoderModels ? "progress_activity" : "download"}
+            <span className="material-symbols-outlined text-sm" style={syncingModels ? { animation: "spin 1s linear infinite" } : undefined}>
+              {syncingModels ? "progress_activity" : "sync"}
             </span>
-            {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
+            {syncingModels ? translate("Syncing Models...") : translate("Sync Live Models")}
           </button>
         )}
 

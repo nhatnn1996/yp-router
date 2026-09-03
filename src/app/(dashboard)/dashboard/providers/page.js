@@ -119,6 +119,7 @@ export default function ProvidersPage() {
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [syncingAll, setSyncingAll] = useState(false);
   const notify = useNotificationStore();
   const searchQuery = useHeaderSearchStore((s) => s.query);
   const registerSearch = useHeaderSearchStore((s) => s.register);
@@ -254,6 +255,28 @@ export default function ProvidersPage() {
     }
   };
 
+  const handleSyncAllModels = async () => {
+    if (syncingAll) return;
+    setSyncingAll(true);
+    try {
+      const res = await fetch("/api/models/sync-all", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.totalAdded > 0) {
+          notify.success(`Đã đồng bộ thành công! Thêm ${data.totalAdded} model mới vào database.`);
+        } else {
+          notify.info("Tất cả model đã được cập nhật, không có model mới.");
+        }
+      } else {
+        notify.error(data.error || "Không thể đồng bộ model");
+      }
+    } catch (e) {
+      notify.error("Lỗi khi đồng bộ model: " + e.message);
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
   const compatibleProviders = providerNodes
     .filter((node) => node.type === "openai-compatible")
     .map((node) => ({
@@ -377,7 +400,18 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={syncingAll ? "progress_activity" : "sync"}
+          disabled={syncingAll}
+          onClick={handleSyncAllModels}
+          className="text-xs w-full sm:w-auto"
+          title="Fetch live models from all active providers and save to database"
+        >
+          {syncingAll ? "Đang đồng bộ..." : "Sync All Models"}
+        </Button>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
