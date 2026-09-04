@@ -41,11 +41,97 @@ function extractSttRequestData(formData, modelStr) {
 
 export async function handleStt(request) {
   const startTime = Date.now();
+  const contentType = (request.headers.get("content-type") || "").toLowerCase();
   let formData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid multipart form data");
+  let audioUrl = null;
+
+  if (contentType.includes("application/json")) {
+    try {
+      const jsonBody = await request.json();
+      formData = new FormData();
+      for (const [k, v] of Object.entries(jsonBody)) {
+        if (v !== undefined && v !== null) {
+          if (Array.isArray(v)) {
+            for (const item of v) formData.append(k, item);
+          } else {
+            formData.append(k, String(v));
+          }
+        }
+      }
+      audioUrl = typeof jsonBody.url === "string" ? jsonBody.url : null;
+    } catch {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+    }
+  } else {
+    try {
+      formData = await request.formData();
+      const urlField = formData.get("url");
+      audioUrl = typeof urlField === "string" ? urlField : null;
+    } catch {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid multipart form data");
+    }
+  }
+
+  // Handle URL download if file was not directly uploaded
+  if (!formData.get("file") && audioUrl) {
+    const trimmedUrl = audioUrl.trim();
+    if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid audio URL: must start with http:// or https://");
+    }
+
+    try {
+      const audioRes = await fetch(trimmedUrl, {
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!audioRes.ok) {
+        return errorResponse(
+          HTTP_STATUS.BAD_REQUEST,
+          `Failed to fetch audio from URL (${audioRes.status}): ${audioRes.statusText}`
+        );
+      }
+      const blob = await audioRes.blob();
+
+      // Determine file name and extension
+      let fileName = "";
+      const cd = audioRes.headers.get("content-disposition") || "";
+      const match = cd.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
+      if (match && match[1]) {
+        fileName = decodeURIComponent(match[1]);
+      }
+      if (!fileName) {
+        try {
+          const parsed = new URL(trimmedUrl);
+          fileName = parsed.pathname.split("/").filter(Boolean).pop() || "";
+        } catch {}
+      }
+
+      const mimeType = (blob.type || audioRes.headers.get("content-type") || "audio/mpeg").split(";")[0].trim();
+      const mimeExtMap = {
+        "audio/mpeg": "mp3",
+        "audio/mp3": "mp3",
+        "audio/wav": "wav",
+        "audio/x-wav": "wav",
+        "audio/wave": "wav",
+        "audio/mp4": "m4a",
+        "audio/x-m4a": "m4a",
+        "audio/m4a": "m4a",
+        "audio/aac": "aac",
+        "audio/ogg": "ogg",
+        "audio/webm": "webm",
+        "audio/flac": "flac",
+        "audio/x-flac": "flac",
+      };
+
+      if (!fileName || !fileName.includes(".")) {
+        const ext = mimeExtMap[mimeType] || "mp3";
+        fileName = fileName ? `${fileName}.${ext}` : `audio.${ext}`;
+      }
+
+      const fileObj = new File([blob], fileName, { type: mimeType });
+      formData.set("file", fileObj);
+    } catch (err) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, `Error downloading audio from URL: ${err.message}`);
+    }
   }
 
   const modelStr = formData.get("model");
@@ -60,7 +146,7 @@ export async function handleStt(request) {
   }
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
-  if (!formData.get("file")) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: file");
+  if (!formData.get("file")) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: file or url");
 
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");

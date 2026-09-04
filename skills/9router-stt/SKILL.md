@@ -19,12 +19,13 @@ curl "$NINEROUTER_URL/v1/models/info?id=openai/whisper-1"
 
 ## Endpoint
 
-`POST $NINEROUTER_URL/v1/audio/transcriptions` (OpenAI Whisper compatible, `multipart/form-data`)
+`POST $NINEROUTER_URL/v1/audio/transcriptions` (OpenAI Whisper compatible, supports `multipart/form-data` and `application/json`)
 
 | Field | Required | Notes |
 |---|---|---|
 | `model` | yes | from `/v1/models/stt` |
-| `file` | yes | audio file (mp3, wav, m4a, webm, ogg, flac) |
+| `file` | optional* | audio file (mp3, wav, m4a, webm, ogg, flac). *Either `file` or `url` is required. |
+| `url` | optional* | direct audio URL (http/https). Server fetches file automatically. |
 | `language` | no | ISO-639-1 (e.g. `en`, `vi`) |
 | `prompt` | no | hint text to guide transcription |
 | `response_format` | no | `json` (default) / `text` / `verbose_json` / `srt` / `vtt` |
@@ -33,12 +34,27 @@ curl "$NINEROUTER_URL/v1/models/info?id=openai/whisper-1"
 
 ## Examples
 
+### 1. File Upload (multipart/form-data)
+
 ```bash
 curl -X POST "$NINEROUTER_URL/v1/audio/transcriptions" \
   -H "Authorization: Bearer $NINEROUTER_KEY" \
-  -F "model=openai/whisper-1" \
+  -F "model=groq/whisper-large-v3" \
   -F "file=@audio.mp3" \
   -F "language=vi"
+```
+
+### 2. Audio Link / URL (application/json)
+
+```bash
+curl -X POST "$NINEROUTER_URL/v1/audio/transcriptions" \
+  -H "Authorization: Bearer $NINEROUTER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "groq/whisper-large-v3",
+    "url": "https://example.com/sample.mp3",
+    "language": "vi"
+  }'
 ```
 
 JS (Node):
