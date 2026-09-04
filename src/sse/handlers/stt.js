@@ -20,11 +20,12 @@ const CREDENTIALED_PROVIDERS = new Set(
 
 function extractSttRequestData(formData, modelStr) {
   const fileObj = formData.get("file");
+  const urlVal = formData.get("url");
   const data = {
     model: modelStr,
-    fileName: fileObj?.name || "audio",
+    fileName: fileObj?.name || (urlVal ? "from_url" : "audio"),
     fileSize: fileObj?.size || 0,
-    fileType: fileObj?.type || "unknown",
+    fileType: fileObj?.type || (urlVal ? "url" : "unknown"),
   };
   for (const [k, v] of formData.entries()) {
     if (k !== "file" && typeof v === "string") {
@@ -72,68 +73,6 @@ export async function handleStt(request) {
     }
   }
 
-  // Handle URL download if file was not directly uploaded
-  if (!formData.get("file") && audioUrl) {
-    const trimmedUrl = audioUrl.trim();
-    if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
-      return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid audio URL: must start with http:// or https://");
-    }
-
-    try {
-      const audioRes = await fetch(trimmedUrl, {
-        signal: AbortSignal.timeout(120000),
-      });
-      if (!audioRes.ok) {
-        return errorResponse(
-          HTTP_STATUS.BAD_REQUEST,
-          `Failed to fetch audio from URL (${audioRes.status}): ${audioRes.statusText}`
-        );
-      }
-      const blob = await audioRes.blob();
-
-      // Determine file name and extension
-      let fileName = "";
-      const cd = audioRes.headers.get("content-disposition") || "";
-      const match = cd.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
-      if (match && match[1]) {
-        fileName = decodeURIComponent(match[1]);
-      }
-      if (!fileName) {
-        try {
-          const parsed = new URL(trimmedUrl);
-          fileName = parsed.pathname.split("/").filter(Boolean).pop() || "";
-        } catch {}
-      }
-
-      const mimeType = (blob.type || audioRes.headers.get("content-type") || "audio/mpeg").split(";")[0].trim();
-      const mimeExtMap = {
-        "audio/mpeg": "mp3",
-        "audio/mp3": "mp3",
-        "audio/wav": "wav",
-        "audio/x-wav": "wav",
-        "audio/wave": "wav",
-        "audio/mp4": "m4a",
-        "audio/x-m4a": "m4a",
-        "audio/m4a": "m4a",
-        "audio/aac": "aac",
-        "audio/ogg": "ogg",
-        "audio/webm": "webm",
-        "audio/flac": "flac",
-        "audio/x-flac": "flac",
-      };
-
-      if (!fileName || !fileName.includes(".")) {
-        const ext = mimeExtMap[mimeType] || "mp3";
-        fileName = fileName ? `${fileName}.${ext}` : `audio.${ext}`;
-      }
-
-      const fileObj = new File([blob], fileName, { type: mimeType });
-      formData.set("file", fileObj);
-    } catch (err) {
-      return errorResponse(HTTP_STATUS.BAD_REQUEST, `Error downloading audio from URL: ${err.message}`);
-    }
-  }
-
   const modelStr = formData.get("model");
   log.request("POST", `/v1/audio/transcriptions | ${modelStr}`);
 
@@ -146,13 +85,90 @@ export async function handleStt(request) {
   }
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
-  if (!formData.get("file")) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: file or url");
+  if (!formData.get("file") && !audioUrl) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: file or url");
+  }
 
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
+
+  // Providers that natively support audio `url` directly in their upstream endpoint
+  const NATIVE_URL_PROVIDERS = new Set(["groq"]);
+
+  if (formData.get("file") && formData.get("url")) {
+    // If both file and url were sent, remove url to prevent upstream conflict errors (e.g. Groq)
+    formData.delete("url");
+  } else if (!formData.get("file") && audioUrl) {
+    if (NATIVE_URL_PROVIDERS.has(provider)) {
+      // Groq handles URL natively without downloading on router server!
+      formData.set("url", audioUrl.trim());
+    } else {
+      // For providers without native URL support, download audio on router
+      const trimmedUrl = audioUrl.trim();
+      if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+        return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid audio URL: must start with http:// or https://");
+      }
+
+      try {
+        const audioRes = await fetch(trimmedUrl, {
+          signal: AbortSignal.timeout(120000),
+        });
+        if (!audioRes.ok) {
+          return errorResponse(
+            HTTP_STATUS.BAD_REQUEST,
+            `Failed to fetch audio from URL (${audioRes.status}): ${audioRes.statusText}`
+          );
+        }
+        const blob = await audioRes.blob();
+
+        let fileName = "";
+        const cd = audioRes.headers.get("content-disposition") || "";
+        const match = cd.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
+        if (match && match[1]) {
+          fileName = decodeURIComponent(match[1]);
+        }
+        if (!fileName) {
+          try {
+            const parsed = new URL(trimmedUrl);
+            fileName = parsed.pathname.split("/").filter(Boolean).pop() || "";
+          } catch {}
+        }
+
+        const mimeType = (blob.type || audioRes.headers.get("content-type") || "audio/mpeg").split(";")[0].trim();
+        const mimeExtMap = {
+          "audio/mpeg": "mp3",
+          "audio/mp3": "mp3",
+          "audio/wav": "wav",
+          "audio/x-wav": "wav",
+          "audio/wave": "wav",
+          "audio/mp4": "m4a",
+          "audio/x-m4a": "m4a",
+          "audio/m4a": "m4a",
+          "audio/aac": "aac",
+          "audio/ogg": "ogg",
+          "audio/webm": "webm",
+          "audio/flac": "flac",
+          "audio/x-flac": "flac",
+        };
+
+        if (!fileName || !fileName.includes(".")) {
+          const ext = mimeExtMap[mimeType] || "mp3";
+          fileName = fileName ? `${fileName}.${ext}` : `audio.${ext}`;
+        }
+
+        const fileObj = new File([blob], fileName, { type: mimeType });
+        formData.set("file", fileObj);
+        // Important: delete url so we do not send both file and url to upstream
+        formData.delete("url");
+      } catch (err) {
+        return errorResponse(HTTP_STATUS.BAD_REQUEST, `Error downloading audio from URL: ${err.message}`);
+      }
+    }
+  }
+
   const requestData = extractSttRequestData(formData, modelStr);
 
   // noAuth providers

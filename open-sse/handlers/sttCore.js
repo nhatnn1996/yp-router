@@ -139,10 +139,13 @@ async function transcribeHuggingFace(cfg, file, model, token) {
 // Default: OpenAI/Groq/Whisper-compatible multipart
 async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
   const fd = new FormData();
-  fd.append("file", file, file.name || "audio.wav");
+  if (file) {
+    fd.append("file", file, file.name || "audio.wav");
+  }
   fd.append("model", model);
   for (const [k, v] of formData.entries()) {
     if (k === "file" || k === "model") continue;
+    if (file && k === "url") continue;
     if (v !== null && v !== undefined && v !== "") {
       fd.append(k, v);
     }
@@ -177,7 +180,8 @@ function jsonResponse(obj) {
  */
 export async function handleSttCore({ provider, model, formData, credentials, sttConfig }) {
   const file = formData.get("file");
-  if (!file) return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: file");
+  const url = formData.get("url");
+  if (!file && !url) return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: file or url");
 
   let cfg = sttConfig;
   if (!cfg) return createErrorResult(HTTP_STATUS.BAD_REQUEST, `Provider '${provider}' does not support STT`);
