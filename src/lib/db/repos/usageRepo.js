@@ -337,7 +337,6 @@ export async function saveRequestUsage(entry) {
     let inserted = false;
 
     // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
-    // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
     await db.transaction(async () => {
       const existing = await db.get(
         `SELECT id, endpoint FROM usageHistory
