@@ -1,14 +1,13 @@
 // Initial schema bootstrap. For fresh DB this creates all tables/indexes.
 // For existing DB at version 0 (legacy unstamped), it's idempotent (IF NOT EXISTS).
-import { TABLES, buildCreateTableSql, buildCreateTableSqlPg } from "../schema.js";
+import { TABLES, buildCreateTableSqlPg } from "../schema.js";
 
 export default {
   version: 1,
   name: "initial",
   async up(db) {
-    const isPg = db.driver === "pg";
     for (const [name, def] of Object.entries(TABLES)) {
-      const ddl = isPg ? buildCreateTableSqlPg(name, def) : buildCreateTableSql(name, def);
+      const ddl = buildCreateTableSqlPg(name, def);
       await db.exec(ddl);
       for (const idx of def.indexes || []) await db.exec(idx);
     }

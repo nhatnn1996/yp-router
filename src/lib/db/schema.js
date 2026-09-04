@@ -5,16 +5,6 @@
 // to bump only skips that backup — it does NOT break the additive auto-sync.
 export const SCHEMA_VERSION = 2;
 
-export const PRAGMA_SQL = `
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA temp_store = MEMORY;
-PRAGMA mmap_size = 30000000;
-PRAGMA cache_size = -64000;
-PRAGMA foreign_keys = ON;
-PRAGMA busy_timeout = 5000;
-`;
-
 // Declarative current schema. Used by syncSchemaFromTables() to
 // auto-add missing tables/columns/indexes after versioned migrations.
 // For destructive changes (drop/rename/type-change), write a migration file.
@@ -158,12 +148,6 @@ export const TABLES = {
   },
 };
 
-export function buildCreateTableSql(name, def) {
-  const cols = Object.entries(def.columns).map(([k, v]) => `${k} ${v}`);
-  if (def.primaryKey) cols.push(def.primaryKey);
-  return `CREATE TABLE IF NOT EXISTS ${name} (${cols.join(", ")})`;
-}
-
 export function buildCreateTableSqlPg(name, def) {
   const cols = Object.entries(def.columns).map(([k, v]) => {
     let pgType = v;
@@ -177,4 +161,3 @@ export function buildCreateTableSqlPg(name, def) {
   if (def.primaryKey) cols.push(def.primaryKey);
   return `CREATE TABLE IF NOT EXISTS ${name} (${cols.join(", ")})`;
 }
-
