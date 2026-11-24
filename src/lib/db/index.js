@@ -45,6 +45,13 @@ export {
   getMitmAlias, setMitmAliasAll,
 } from "./repos/aliasRepo.js";
 
+// Provider models (dynamic DB-backed models)
+export {
+  getProviderModelsOverride, getAllProviderModelOverrides,
+  saveProviderModelsOverride, deleteProviderModelsOverride,
+  initProviderModelsFromDb,
+} from "./repos/providerModelsRepo.js";
+
 // Pricing
 export {
   getPricing, getPricingForModel, updatePricing, resetPricing, resetAllPricing,

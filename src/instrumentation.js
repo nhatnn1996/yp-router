@@ -10,5 +10,9 @@ export async function register() {
 
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync.js");
     startModelCatalogSync();
+
+    // Load custom provider model overrides stored in DB into runtime
+    const { initProviderModelsFromDb } = await import("@/lib/db/repos/providerModelsRepo.js");
+    await initProviderModelsFromDb();
   }
 }

@@ -257,11 +257,6 @@ export default function BasicChatPageClient() {
           group.providerName = group.providerName || providerName;
           group.providerType = group.providerType || providerType;
           group.connections.push(connection);
-
-          const staticModels = getModelsByProviderId(providerId)
-            .map((model) => normalizeStaticModel(model, connection))
-            .filter(Boolean);
-          group.models.push(...staticModels);
         }
 
         const liveResults = await Promise.all(
@@ -285,6 +280,18 @@ export default function BasicChatPageClient() {
           const group = providerMap.get(providerId);
           if (!group) continue;
           group.models.push(...result.models);
+        }
+
+        // Only fall back to static models if live fetch returned nothing for a provider
+        for (const group of providerMap.values()) {
+          if (group.models.length === 0) {
+            for (const connection of group.connections) {
+              const staticModels = getModelsByProviderId(group.providerId)
+                .map((model) => normalizeStaticModel(model, connection))
+                .filter(Boolean);
+              group.models.push(...staticModels);
+            }
+          }
         }
 
         const normalized = Array.from(providerMap.values())

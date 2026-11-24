@@ -70,6 +70,9 @@ export default function ProviderDetailPage() {
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
   const [liveModels, setLiveModels] = useState([]);
+  const [syncedProviderModels, setSyncedProviderModels] = useState(null);
+  const [isModelsOverridden, setIsModelsOverridden] = useState(false);
+  const [resettingModels, setResettingModels] = useState(false);
   const [kiloFreeModels, setKiloFreeModels] = useState([]);
   const [disabledModelIds, setDisabledModelIds] = useState([]);
   const [confirmState, setConfirmState] = useState(null);
@@ -146,9 +149,9 @@ export default function ProviderDetailPage() {
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const staticModels = getModelsByProviderId(providerId);
-  const models = providerId === "cursor" && liveModels.length > 0
-    ? liveModels
-    : staticModels;
+  const models = isModelsOverridden && Array.isArray(syncedProviderModels)
+    ? syncedProviderModels
+    : (providerId === "cursor" && liveModels.length > 0 ? liveModels : staticModels);
   const providerAlias = getProviderAlias(providerId);
   
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
@@ -453,12 +456,29 @@ export default function ProviderDetailPage() {
     saveAutoPing({ ...autoPing, connections: { ...autoPing.connections, [connectionId]: on } });
   };
 
+  const fetchProviderModels = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/providers/${providerId}/provider-models`, { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && data.isOverridden && Array.isArray(data.models)) {
+        setSyncedProviderModels(data.models);
+        setIsModelsOverridden(true);
+      } else if (res.ok) {
+        setSyncedProviderModels(null);
+        setIsModelsOverridden(false);
+      }
+    } catch (error) {
+      console.log("Error fetching provider models override:", error);
+    }
+  }, [providerId]);
+
   useEffect(() => {
     fetchConnections();
     fetchAliases();
     fetchCustomModels();
     fetchDisabledModels();
-  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels]);
+    fetchProviderModels();
+  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels, fetchProviderModels]);
 
   // Cursor's model availability is account-specific and changes frequently.
   // Load the active account's live catalog for the dashboard; the static
@@ -581,16 +601,17 @@ export default function ProviderDetailPage() {
         return;
       }
 
-      if (data.addedCount > 0) {
-        await fetchCustomModels();
+      if (Array.isArray(data.models) && data.models.length > 0) {
+        setSyncedProviderModels(data.models);
+        setIsModelsOverridden(true);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("customModelChanged"));
         }
         if (!isAuto) {
-          alert(translate("Successfully added") + ` ${data.addedCount} ` + translate("new models"));
+          alert(translate("Synced") + ` ${data.models.length} ` + translate("live models"));
         }
       } else if (!isAuto) {
-        alert(translate("All models already up to date, no new models found"));
+        alert(data.message || translate("Provider returned no models"));
       }
 
       if (typeof window !== "undefined") {
@@ -603,6 +624,27 @@ export default function ProviderDetailPage() {
       }
     } finally {
       setSyncingModels(false);
+    }
+  };
+
+  const handleResetProviderModels = async () => {
+    if (resettingModels) return;
+    setResettingModels(true);
+    try {
+      const res = await fetch(`/api/providers/${providerId}/provider-models`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setSyncedProviderModels(null);
+        setIsModelsOverridden(false);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("customModelChanged"));
+        }
+      }
+    } catch (error) {
+      console.log("Error resetting provider models:", error);
+    } finally {
+      setResettingModels(false);
     }
   };
 
@@ -1187,12 +1229,24 @@ export default function ProviderDetailPage() {
             onClick={() => handleSyncModels(false)}
             disabled={syncingModels}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Fetch live models from provider API and save new ones to database"
+            title="Fetch live models from provider API and replace the displayed model list"
           >
             <span className="material-symbols-outlined text-sm" style={syncingModels ? { animation: "spin 1s linear infinite" } : undefined}>
               {syncingModels ? "progress_activity" : "sync"}
             </span>
             {syncingModels ? translate("Syncing Models...") : translate("Sync Live Models")}
+          </button>
+        )}
+
+        {isModelsOverridden && (
+          <button
+            onClick={handleResetProviderModels}
+            disabled={resettingModels}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-primary/40 hover:text-primary sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Reset back to built-in default models"
+          >
+            <span className="material-symbols-outlined text-sm">restart_alt</span>
+            {resettingModels ? translate("Resetting...") : translate("Reset Defaults")}
           </button>
         )}
 

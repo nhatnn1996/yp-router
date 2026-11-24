@@ -35,6 +35,11 @@ const CODEX_GPT_5_6_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh
 
 // Model-name pattern overrides (glob, first match wins) — more precise than format default.
 const PATTERN_THINKING = [
+  // Gemini 4 Neon & Hydrogen support xhigh in addition to low/medium/high (no minimal/none).
+  { pattern: "*gemini-4-neon*", levels: ["low", "medium", "high", "xhigh"] },
+  { pattern: "*gemini-4-hydrogen*", levels: ["low", "medium", "high", "xhigh"] },
+  // Gemini 4 (Argon, Carbon) rejects "minimal" with 400 — LOW is the floor; cannot disable thinking.
+  { pattern: "*gemini-4*", levels: ["low", "medium", "high"] },
   { provider: "codex", pattern: "*gpt-5.6-sol*", levels: [...CODEX_GPT_5_6_LEVELS, "ultra"] },
   { provider: "codex", pattern: "*gpt-5.6-terra*", levels: [...CODEX_GPT_5_6_LEVELS, "ultra"] },
   { provider: "codex", pattern: "*gpt-5.6-luna*", levels: CODEX_GPT_5_6_LEVELS },
@@ -50,11 +55,12 @@ const PATTERN_THINKING = [
 
 // Returns valid thinking levels for a model, or null when the model has no reasoning.
 export function getThinkingLevels(provider, model) {
-  if (provider === "kiro" && resolveKiroEffortPath(model) === null) return null;
-  const caps = getCapabilitiesForModel(provider, model);
+  const normalizedProvider = provider === "ag" ? "antigravity" : provider;
+  if (normalizedProvider === "kiro" && resolveKiroEffortPath(model) === null) return null;
+  const caps = getCapabilitiesForModel(normalizedProvider, model);
   if (!caps.reasoning) return null;
   const hit = PATTERN_THINKING.find((entry) =>
-    (!entry.provider || entry.provider === provider) && matchPattern(entry.pattern, model)
+    (!entry.provider || entry.provider === normalizedProvider) && matchPattern(entry.pattern, model)
   );
   let levels = hit?.levels || FORMAT_LEVELS[caps.thinkingFormat] || L.base;
   if (caps.thinkingCanDisable === false) levels = levels.filter((l) => l !== "none");

@@ -1,48 +1,15 @@
 import { NextResponse } from "next/server";
-import { getProviderConnections, getProviderConnectionById, getCustomModels, addCustomModel, getModelAliases } from "@/models";
+import { getProviderConnections, getProviderConnectionById, saveProviderModelsOverride } from "@/models";
 import { getProviderAlias, resolveProviderId } from "@/shared/constants/providers";
-import { getModelsByProviderId } from "open-sse/config/providerModels.js";
-import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { buildSyncedProviderModels } from "@/lib/models/normalizeLiveModels";
 import { getLiveModelsForConnection } from "../models/route.js";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Normalizes model ID and detects its media/service type
- */
-function normalizeModel(rawModel, providerId) {
-  const rawId = rawModel?.id || rawModel?.name || rawModel?.slug;
-  if (!rawId || typeof rawId !== "string") return null;
-
-  let cleanId = rawId.trim();
-  if (providerId === "gemini") {
-    cleanId = cleanId.replace(/^models\//, "");
-  } else if (providerId === "qoder") {
-    cleanId = cleanId.replace(/^qoder\//, "");
-  }
-
-  const lowerId = cleanId.toLowerCase();
-  let type = rawModel?.type || rawModel?.kind || "llm";
-
-  if (type === "llm") {
-    if (lowerId.includes("embed")) {
-      type = "embedding";
-    } else if (lowerId.startsWith("tts") || lowerId.includes("speech")) {
-      type = "tts";
-    } else if (lowerId.includes("whisper") || lowerId.includes("transcription")) {
-      type = "stt";
-    } else if (lowerId.includes("dall-e") || lowerId.includes("imagen") || lowerId.includes("flux") || lowerId.includes("stable-diffusion")) {
-      type = "image";
-    }
-  }
-
-  const name = rawModel?.displayName || rawModel?.display_name || rawModel?.name || cleanId;
-  return { cleanId, type, name };
-}
-
-/**
  * POST /api/providers/[id]/sync-models
- * Fetches live models for a provider's active connection and saves new models into customModels DB
+ * Fetches live models for a provider's active connection and replaces
+ * the provider's model catalog in DB & runtime (hiding hardcoded defaults).
  */
 export async function POST(request, { params }) {
   try {
@@ -62,7 +29,6 @@ export async function POST(request, { params }) {
     }
 
     if (!connection) {
-      // Find active connection for this provider
       let connections = await getProviderConnections({ provider: providerId, isActive: true });
       if (!connections.length) {
         const resolvedId = resolveProviderId(providerId);
@@ -80,7 +46,6 @@ export async function POST(request, { params }) {
       connection = connections[0];
     }
 
-    // Call live models fetcher
     const fetchResult = await getLiveModelsForConnection(connection);
     if (fetchResult.error) {
       return NextResponse.json(
@@ -95,76 +60,27 @@ export async function POST(request, { params }) {
         success: true,
         provider: connection.provider,
         total: 0,
+        syncedCount: 0,
         addedCount: 0,
-        addedModels: [],
+        models: [],
         message: "Provider returned no models",
       });
     }
 
     const providerStorageAlias = getProviderAlias(connection.provider) || connection.provider;
+    const syncedModels = buildSyncedProviderModels(liveModels, connection.provider);
 
-    // Load existing models (built-in, custom, aliases)
-    const [builtInList, customList, aliasesMap] = await Promise.all([
-      getModelsByProviderId(connection.provider) || [],
-      getCustomModels() || [],
-      getModelAliases() || {},
-    ]);
-
-    const existingIds = new Set([
-      ...builtInList.map((m) => m.id),
-      ...customList
-        .filter((m) => m.providerAlias === providerStorageAlias)
-        .map((m) => m.id),
-      ...Object.values(aliasesMap)
-        .filter((val) => typeof val === "string" && val.startsWith(`${providerStorageAlias}/`))
-        .map((val) => val.slice(providerStorageAlias.length + 1)),
-    ]);
-
-    const addedModels = [];
-
-    for (const rawModel of liveModels) {
-      const normalized = normalizeModel(rawModel, connection.provider);
-      if (!normalized) continue;
-
-      const { cleanId, type, name } = normalized;
-
-      if (existingIds.has(cleanId)) {
-        continue;
-      }
-
-      // Determine capabilities
-      const c = getCapabilitiesForModel(providerStorageAlias, cleanId);
-      const caps = {
-        vision: Boolean(rawModel.capabilities?.vision ?? rawModel.isVL ?? c.vision),
-        reasoning: Boolean(rawModel.capabilities?.reasoning ?? rawModel.isReasoning ?? c.reasoning),
-      };
-
-      // Add to database
-      await addCustomModel({
-        providerAlias: providerStorageAlias,
-        id: cleanId,
-        type,
-        name,
-        caps,
-      });
-
-      existingIds.add(cleanId);
-      addedModels.push({
-        providerAlias: providerStorageAlias,
-        id: cleanId,
-        type,
-        name,
-        caps,
-      });
-    }
+    await saveProviderModelsOverride(connection.provider, syncedModels);
 
     return NextResponse.json({
       success: true,
       provider: connection.provider,
       providerAlias: providerStorageAlias,
-      total: liveModels.length,
-      addedCount: addedModels.length,
-      addedModels,
+      isOverridden: true,
+      total: syncedModels.length,
+      syncedCount: syncedModels.length,
+      addedCount: syncedModels.length,
+      models: syncedModels,
       warning: fetchResult.warning,
     });
   } catch (error) {

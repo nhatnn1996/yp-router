@@ -2,7 +2,7 @@ import { PROVIDERS } from "./providers.js";
 import REGISTRY from "../providers/registry/index.js";
 // PROVIDER_MODELS now built from providers/registry (transport + models co-located)
 import { PROVIDER_MODELS } from "../providers/index.js";
-import { modelQuotaFamily, modelStrip, modelTargetFormat, modelSupportedFormats, normalizeModelId } from "../providers/models/schema.js";
+import { modelQuotaFamily, modelStrip, modelTargetFormat, modelSupportedFormats, normalizeModelId, normalizeModel } from "../providers/models/schema.js";
 import { CODEX_REVIEW_SUFFIX, isMuseSparkModel } from "../providers/models/helpers.js";
 import { FORMATS } from "../translator/formats.js";
 export { PROVIDER_MODELS };
@@ -119,4 +119,59 @@ export function getModelsByProviderId(providerId) {
 // Returns array of content types to strip, e.g. ["image", "audio"]
 export function getModelStrip(alias, modelId) {
   return modelStrip(findModel(PROVIDER_MODELS[alias], modelId, alias));
+}
+
+// Snapshot initial registry models for reset
+const INITIAL_REGISTRY_MODELS = {};
+for (const [key, models] of Object.entries(PROVIDER_MODELS)) {
+  if (Array.isArray(models)) {
+    INITIAL_REGISTRY_MODELS[key] = [...models];
+  }
+}
+for (const [id, alias] of Object.entries(PROVIDER_ID_TO_ALIAS)) {
+  if (INITIAL_REGISTRY_MODELS[alias] && !INITIAL_REGISTRY_MODELS[id]) {
+    INITIAL_REGISTRY_MODELS[id] = [...INITIAL_REGISTRY_MODELS[alias]];
+  }
+}
+
+/**
+ * Get the original static registry models (before any DB override)
+ */
+export function getStaticProviderModels(aliasOrId) {
+  const alias = PROVIDER_ID_TO_ALIAS[aliasOrId] || aliasOrId;
+  return INITIAL_REGISTRY_MODELS[alias] || INITIAL_REGISTRY_MODELS[aliasOrId] || [];
+}
+
+/**
+ * Apply database or runtime override for a provider's model list
+ */
+export function applyProviderModelsOverride(aliasOrId, models) {
+  if (!aliasOrId || !Array.isArray(models)) return;
+  const alias = PROVIDER_ID_TO_ALIAS[aliasOrId] || aliasOrId;
+  const normalized = models.map(normalizeModel);
+  PROVIDER_MODELS[alias] = normalized;
+  PROVIDER_MODELS[aliasOrId] = normalized;
+}
+
+/**
+ * Reset provider models back to static registry defaults
+ */
+export function resetProviderModelsOverride(aliasOrId) {
+  const alias = PROVIDER_ID_TO_ALIAS[aliasOrId] || aliasOrId;
+  const initial = INITIAL_REGISTRY_MODELS[alias] || INITIAL_REGISTRY_MODELS[aliasOrId];
+  if (initial) {
+    PROVIDER_MODELS[alias] = [...initial];
+    PROVIDER_MODELS[aliasOrId] = [...initial];
+  }
+}
+
+/**
+ * Load multiple provider model overrides at once (e.g. at boot from DB)
+ */
+export function loadAllProviderModelOverrides(overridesMap = {}) {
+  for (const [providerId, models] of Object.entries(overridesMap)) {
+    if (Array.isArray(models) && models.length > 0) {
+      applyProviderModelsOverride(providerId, models);
+    }
+  }
 }

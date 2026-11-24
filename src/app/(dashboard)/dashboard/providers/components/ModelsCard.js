@@ -112,6 +112,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
   const { copied, copy } = useCopyToClipboard();
   const [modelAliases, setModelAliases] = useState({});
   const [customModels, setCustomModels] = useState([]);
+  const [syncedProviderModels, setSyncedProviderModels] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
   const [testingModelId, setTestingModelId] = useState(null);
   const [testError, setTestError] = useState("");
@@ -122,16 +123,23 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
 
   const fetchData = useCallback(async () => {
     try {
-      const [aliasRes, customRes] = await Promise.all([
+      const [aliasRes, customRes, providerModelsRes] = await Promise.all([
         fetch("/api/models/alias"),
         fetch("/api/models/custom", { cache: "no-store" }),
+        fetch(`/api/providers/${providerId}/provider-models`, { cache: "no-store" }),
       ]);
       const aliasData = await aliasRes.json();
       const customData = await customRes.json();
+      const providerModelsData = await providerModelsRes.json().catch(() => ({}));
       if (aliasRes.ok) setModelAliases(aliasData.aliases || {});
       if (customRes.ok) setCustomModels(customData.models || []);
+      if (providerModelsRes.ok && providerModelsData.isOverridden && Array.isArray(providerModelsData.models)) {
+        setSyncedProviderModels(providerModelsData.models);
+      } else if (providerModelsRes.ok) {
+        setSyncedProviderModels(null);
+      }
     } catch (e) { console.log("ModelsCard fetch error:", e); }
-  }, []);
+  }, [providerId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -197,8 +205,10 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
     } finally { setTestingModelId(null); }
   };
 
-  // Built-in models — filter by kindFilter if provided
-  const allBuiltIn = getModelsByProviderId(providerId);
+  // Built-in or synced live models — filter by kindFilter if provided
+  const allBuiltIn = Array.isArray(syncedProviderModels)
+    ? syncedProviderModels
+    : getModelsByProviderId(providerId);
   const builtInModels = kindFilter
     ? allBuiltIn.filter((m) => {
         if (m.kinds) return m.kinds.includes(kindFilter);
