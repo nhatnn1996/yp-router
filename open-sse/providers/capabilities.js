@@ -83,8 +83,12 @@ export function capabilitiesFromServiceKind(kind) {
  * otherwise mis-match. Only declare deltas vs DEFAULT.
  */
 export const MODEL_CAPABILITIES = {
-  // Claude Fable 5.1, Opus 5, 4.6/4.7/4.8, and Kiro Sonnet 5 have 1M context + adaptive thinking (override generic claude pattern)
-  "claude-fable-5-1": { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },
+  // Claude Fable 5.2/5.1, Opus 5.5/5, Sonnet 5.5/5, Haiku 5.5, 4.6/4.7/4.8 have 1M context + adaptive thinking
+  "claude-fable-5-2": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },
+  "claude-fable-5-1": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },
+  "claude-haiku-5-5": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
+  "claude-opus-5-5":  { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, thinkingCanDisable: false, forcedToolChoice: false },
+  "claude-sonnet-5-5": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, thinkingOffType: "between_tools", forcedToolChoice: false },
   "claude-opus-5":     { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   "claude-opus-5-thinking": { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   "claude-opus-5-agentic": { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },

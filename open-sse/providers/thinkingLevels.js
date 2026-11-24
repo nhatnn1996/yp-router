@@ -18,7 +18,7 @@ const L = {
 // thinkingFormat → valid selectable levels (source of truth for UI options).
 const FORMAT_LEVELS = {
   openai: L.openai,
-  "claude-adaptive": L.levelMax,
+  "claude-adaptive": L.budgetX,
   "claude-budget": L.budgetX,
   "gemini-level": L.gemini,
   "gemini-budget": L.base,
@@ -40,6 +40,9 @@ const PATTERN_THINKING = [
   { pattern: "*gemini-4-hydrogen*", levels: ["low", "medium", "high", "xhigh"] },
   // Gemini 4 (Argon, Carbon) rejects "minimal" with 400 — LOW is the floor; cannot disable thinking.
   { pattern: "*gemini-4*", levels: ["low", "medium", "high"] },
+  // Opus/Sonnet 4.6 lack xhigh — keep the 4-level+max set.
+  { pattern: "*claude*4.6*", levels: L.levelMax },
+  { pattern: "*claude*4-6*", levels: L.levelMax },
   { provider: "codex", pattern: "*gpt-5.6-sol*", levels: [...CODEX_GPT_5_6_LEVELS, "ultra"] },
   { provider: "codex", pattern: "*gpt-5.6-terra*", levels: [...CODEX_GPT_5_6_LEVELS, "ultra"] },
   { provider: "codex", pattern: "*gpt-5.6-luna*", levels: CODEX_GPT_5_6_LEVELS },
